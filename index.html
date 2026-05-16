@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taschengeld</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f7;color:#1d1d1f;min-height:100vh}
+  .app{max-width:480px;margin:0 auto;padding:1rem 1rem 4rem}
+  h2{font-size:20px;font-weight:600;margin-bottom:1.25rem}
+  input{width:100%;padding:10px 12px;border:1px solid #d1d1d6;border-radius:10px;font-size:15px;background:#fff;outline:none}
+  input:focus{border-color:#007aff}
+  label{display:block;font-size:13px;color:#6e6e73;margin-bottom:5px}
+  .btn{width:100%;padding:11px;border-radius:10px;border:1px solid #d1d1d6;background:#fff;cursor:pointer;font-size:14px;font-weight:500;color:#1d1d1f}
+  .btn:active{opacity:0.7}
+  .btn-ghost{background:transparent;border:none;cursor:pointer;color:#6e6e73;font-size:13px;padding:4px 8px}
+  .card{background:#fff;border-radius:14px;border:1px solid #e5e5ea;overflow:hidden;margin-bottom:12px}
+  .card-header{padding:16px 18px 12px;display:flex;align-items:center;gap:12px}
+  .avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex-shrink:0}
+  .section{padding:12px 18px;border-top:1px solid #f0f0f5}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f5}
+  .row:last-child{border-bottom:none}
+  .tag{font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;flex-shrink:0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  .stat-box{background:#f5f5f7;border-radius:10px;padding:10px 12px}
+  .stat-label{font-size:11px;color:#6e6e73;margin-bottom:3px}
+  .stat-val{font-size:16px;font-weight:600}
+  .bar-wrap{height:6px;border-radius:3px;background:#e5e5ea;overflow:hidden;margin:6px 0}
+  .bar{height:100%;border-radius:3px;transition:width .3s}
+  .month-nav{display:flex;align-items:center;gap:4px}
+  .month-nav button{background:none;border:none;cursor:pointer;font-size:20px;color:#6e6e73;padding:2px 6px;line-height:1}
+  .month-nav button:disabled{color:#d1d1d6;cursor:default}
+  .month-nav span{font-size:15px;font-weight:500;min-width:110px;text-align:center}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center;z-index:100}
+  .modal{width:100%;max-width:480px;background:#fff;border-radius:18px 18px 0 0;padding:1.5rem 1.25rem 2rem}
+  .modal-title{font-size:17px;font-weight:600;margin-bottom:1rem}
+  .pin-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:200}
+  .pin-modal{width:280px;background:#fff;border-radius:18px;padding:1.5rem}
+  .status{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:#f5f5f7;margin-bottom:12px;font-size:12px;color:#6e6e73}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .err-box{background:#fff2f2;border-radius:8px;padding:8px 12px;font-size:13px;color:#c0392b;margin-bottom:12px}
+  .carry-box{background:#fef9e7;border-radius:8px;padding:8px 12px;font-size:12px;color:#7d6608;margin-bottom:10px;display:flex;justify-content:space-between}
+  .overshoot{background:#fef9e7;border-radius:8px;padding:8px 12px;font-size:12px;color:#833b0a;margin-top:6px}
+  .setup{max-width:420px;margin:2rem auto;padding:1.5rem}
+  .field{margin-bottom:14px}
+  .flex{display:flex;gap:8px}
+  .flex .btn{flex:1}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const MONTHS = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const COLS = [
+  {bg:"#e6f1fb",text:"#042c53",bar:"#378add"},
+  {bg:"#e1f5ee",text:"#04342c",bar:"#1d9e75"},
+  {bg:"#fbeaf0",text:"#4b1528",bar:"#d4537e"},
+  {bg:"#faeeda",text:"#412402",bar:"#ba7517"},
+  {bg:"#eeedfe",text:"#26215c",bar:"#7f77dd"},
+  {bg:"#faece7",text:"#4a1b0c",bar:"#d85a30"},
+];
+
+const fmt = v => new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR"}).format(v??0);
+const fmtD = iso => new Date(iso).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"});
+const todayKey = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; };
+const mLabel = k => { const [y,m]=k.split("-"); return `${MONTHS[+m-1]} ${y}`; };
+const inits = n => n.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+const stepM = (mk,d) => { const [y,m]=mk.split("-").map(Number); const dt=new Date(y,m-1+d,1); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`; };
+
+// ── State ──────────────────────────────────────────────────────────────────
+let state = {
+  sbUrl: localStorage.getItem("sb-url")||"",
+  sbKey: localStorage.getItem("sb-key")||"",
+  configured: !!(localStorage.getItem("sb-url")&&localStorage.getItem("sb-key")),
+  data: {children:[]},
+  loading: false,
+  saving: false,
+  saveErr: false,
+  connectErr: "",
+  mode: "kind", // kind | eltern | pin
+  view: "home", // home | child | add-child
+  selId: null,
+  month: todayKey(),
+  modal: null,
+  form: {betrag:"",notiz:"",typ:"taschengeld",datum:""},
+  kindForm: {betrag:"",notiz:"",typ:"ausgabe",datum:""},
+  kindModal: null,
+  szForm: {name:"",ziel:""},
+  newChild: {name:"",monatlBetrag:""},
+  editMonatl: "",
+  pin: "",
+  savedPin: localStorage.getItem("tg-pin")||"",
+  pinError: false,
+  settingPin: false,
+};
+
+// ── Supabase ───────────────────────────────────────────────────────────────
+const sbFetch = (method="GET", body=null) =>
+  fetch(`${state.sbUrl}/rest/v1/taschengeld?id=eq.1`, {
+    method,
+    headers:{
+      "apikey":state.sbKey,
+      "Authorization":`Bearer ${state.sbKey}`,
+      "Content-Type":"application/json",
+      "Prefer":method==="PATCH"?"return=minimal":""
+    },
+    ...(body?{body:JSON.stringify(body)}:{})
+  });
+
+const loadSB = async () => {
+  const r = await sbFetch();
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  const rows = await r.json();
+  return rows?.[0]?.data || {children:[]};
+};
+const saveSB = async d => {
+  const r = await sbFetch("PATCH",{data:d});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+};
+
+// ── Logic ──────────────────────────────────────────────────────────────────
+const getCarryOver = (c, beforeMk) => {
+  const keys=[...new Set((c.transaktionen||[]).map(t=>t.monatKey))].filter(k=>k<beforeMk).sort();
+  return keys.reduce((debt,mk)=>{
+    const txs=(c.transaktionen||[]).filter(t=>t.monatKey===mk);
+    const el=txs.filter(t=>t.typ==="taschengeld"||t.typ==="auslage").reduce((s,t)=>s+t.betrag,0);
+    return debt+el-(c.monatlBetrag||0);
+  },0);
+};
+const calcStats = (c,mk) => {
+  const txs=(c.transaktionen||[]).filter(t=>t.monatKey===mk);
+  const ausgezahlt=txs.filter(t=>t.typ==="taschengeld").reduce((s,t)=>s+t.betrag,0);
+  const auslagen=txs.filter(t=>t.typ==="auslage").reduce((s,t)=>s+t.betrag,0);
+  const ausgaben=txs.filter(t=>t.typ==="ausgabe").reduce((s,t)=>s+t.betrag,0);
+  const elternGesamt=ausgezahlt+auslagen;
+  const vereinbart=c.monatlBetrag||0;
+  const carryOver=getCarryOver(c,mk);
+  const netOffen=vereinbart-carryOver-elternGesamt;
+  const verfuegbar=Math.max(0,ausgezahlt-ausgaben);
+  return {ausgezahlt,auslagen,ausgaben,elternGesamt,vereinbart,carryOver,netOffen,offen:Math.max(0,netOffen),verfuegbar,txs};
+};
+
+// ── Render helpers ─────────────────────────────────────────────────────────
+const h = (tag,attrs={},children=[]) => {
+  const el=document.createElement(tag);
+  Object.entries(attrs).forEach(([k,v])=>{
+    if(k==="style"&&typeof v==="object") Object.assign(el.style,v);
+    else if(k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(k==="className") el.className=v;
+    else el.setAttribute(k,v);
+  });
+  children.forEach(c=>{
+    if(c==null||c===false) return;
+    el.appendChild(typeof c==="string"?document.createTextNode(c):c);
+  });
+  return el;
+};
+
+const monthNav = (large=false) => {
+  const wrap=h("div",{className:"month-nav"});
+  const btnL=h("button",{onCLICK:()=>{state.month=stepM(state.month,-1);render();}},["‹"]);
+  btnL.addEventListener("click",()=>{state.month=stepM(state.month,-1);render();});
+  const lbl=h("span",{style:{fontSize:large?"18px":"14px",fontWeight:large?"600":"400"}},[ mLabel(state.month)]);
+  const btnR=h("button",{},["›"]);
+  btnR.addEventListener("click",()=>{if(state.month!==todayKey()){state.month=stepM(state.month,1);render();}});
+  if(state.month===todayKey()) btnR.disabled=true;
+  wrap.append(btnL,lbl,btnR);
+  return wrap;
+};
+
+const statusBar = () => {
+  const dot=h("div",{className:"dot",style:{background:state.saving?"#ba7517":state.saveErr?"#c0392b":"#1d9e75"}});
+  const txt=state.saving?"Wird gespeichert…":state.saveErr?"Speichern fehlgeschlagen – bitte prüfen":"Gespeichert in Supabase";
+  return h("div",{className:"status"},[dot,txt]);
+};
+
+const saveData = async next => {
+  state.data=next; state.saving=true; state.saveErr=false; render();
+  try { await saveSB(next); state.saving=false; }
+  catch { state.saving=false; state.saveErr=true; }
+  render();
+};
+
+// ── Views ──────────────────────────────────────────────────────────────────
+const renderSetup = () => {
+  const wrap=h("div",{className:"setup"});
+  wrap.append(h("h2",{},["Supabase einrichten"]));
+  wrap.append(h("p",{style:{fontSize:"13px",color:"#6e6e73",marginBottom:"1.5rem",lineHeight:"1.6"}},["Trage deine Supabase-Zugangsdaten ein. Du findest sie unter Settings → Data API."]));
+  const urlInp=h("input",{type:"text",placeholder:"https://xyz.supabase.co",value:state.sbUrl});
+  const keyInp=h("input",{type:"text",placeholder:"eyJ…",value:state.sbKey});
+  wrap.append(h("div",{className:"field"},[h("label",{},["API URL"]),urlInp]));
+  wrap.append(h("div",{className:"field",style:{marginBottom:"20px"}},[h("label",{},["anon / Legacy Key"]),keyInp]));
+  if(state.connectErr) wrap.append(h("div",{className:"err-box"},[state.connectErr]));
+  const btn=h("button",{className:"btn",style:{marginTop:"4px"}},[state.loading?"Verbinde…":"Verbinden"]);
+  btn.addEventListener("click", async()=>{
+    const url=urlInp.value.trim().replace(/\/+$/,"").replace(/\/rest\/v1$/,"");
+    const key=keyInp.value.trim();
+    if(!url||!key) return;
+    state.sbUrl=url; state.sbKey=key; state.loading=true; state.connectErr=""; render();
+    try {
+      const d=await loadSB();
+      state.data=d;
+      localStorage.setItem("sb-url",url);
+      localStorage.setItem("sb-key",key);
+      state.configured=true;
+    } catch(e) { state.connectErr=`Verbindung fehlgeschlagen: ${e.message}`; }
+    state.loading=false; render();
+  });
+  wrap.append(btn);
+  return wrap;
+};
+
+const renderKind = () => {
+  const wrap=h("div",{className:"app"});
+  const hdr=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.25rem"}});
+  hdr.append(h("h2",{style:{margin:0}},["Taschengeld"]),monthNav());
+  wrap.append(hdr);
+  wrap.append(statusBar());
+  const kids=state.data.children||[];
+  if(!kids.length) wrap.append(h("p",{style:{color:"#6e6e73",fontSize:"14px"}},["Noch keine Daten."]));
+
+  kids.forEach((c,i)=>{
+    const col=COLS[i%COLS.length],s=calcStats(c,state.month);
+    const pct=s.vereinbart>0?Math.min(100,((s.elternGesamt+s.carryOver)/s.vereinbart)*100):0;
+    const card=h("div",{className:"card"});
+
+    // Header
+    const av=h("div",{className:"avatar",style:{background:col.bg,color:col.text}},[inits(c.name)]);
+    const nm=h("div",{},[h("p",{style:{fontWeight:"600",fontSize:"16px",color:col.text}},[c.name]),h("p",{style:{fontSize:"12px",color:col.text,opacity:"0.7"}},[`${fmt(s.vereinbart)} / Monat`])]);
+    card.append(h("div",{className:"card-header"},[av,nm]));
+
+    // Guthaben
+    const sec1=h("div",{className:"section"});
+    const g=h("div",{className:"grid2"});
+    const box1=h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Noch zu bekommen"]),h("div",{className:"stat-val",style:{color:s.netOffen>0?col.text:"#aaa"}},[s.netOffen>0?fmt(s.offen):"–"])]);
+    const box2=h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Verfügbares Bargeld"]),h("div",{className:"stat-val",style:{color:s.verfuegbar>0?"#1d9e75":"#aaa"}},[fmt(s.verfuegbar)])]);
+    g.append(box1,box2);
+    sec1.append(g);
+    if(s.netOffen<0) sec1.append(h("div",{className:"overshoot"},[`${fmt(-s.netOffen)} werden vom nächsten Monat abgezogen`]));
+    card.append(sec1);
+
+    // Fortschritt
+    const sec2=h("div",{className:"section"});
+    sec2.append(h("div",{style:{fontSize:"11px",color:"#6e6e73",marginBottom:"6px"}},["Taschengeld verrechnet"]));
+    const barEl=h("div",{className:"bar",style:{width:pct+"%",background:s.netOffen<0?"#EF9F27":col.bar}});
+    sec2.append(h("div",{className:"bar-wrap"},[barEl]));
+    const inf=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:"11px",color:"#6e6e73"}});
+    inf.append(h("span",{},["Bargeld "+fmt(s.ausgezahlt)]),h("span",{},["Auslagen "+fmt(s.auslagen)]));
+    if(s.carryOver>0) inf.append(h("span",{style:{color:"#833b0a"}},["Übertrag −"+fmt(s.carryOver)]));
+    sec2.append(inf);
+    card.append(sec2);
+
+    // Ausgaben
+    const sec3=h("div",{className:"section"});
+    const ausgRow=h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:"8px"}});
+    ausgRow.append(h("span",{style:{fontSize:"11px",color:"#6e6e73"}},["Meine Ausgaben"]),h("span",{style:{fontWeight:"600",color:"#d4537e"}},[fmt(s.ausgaben)]));
+    sec3.append(ausgRow);
+    s.txs.filter(t=>t.typ==="ausgabe").forEach(tx=>{
+      const r=h("div",{className:"row"});
+      r.append(h("span",{style:{fontSize:"13px"}},[tx.notiz||"Ausgabe"]),h("span",{style:{fontSize:"13px",fontWeight:"500",color:"#d4537e"}},["−"+fmt(tx.betrag)]));
+      sec3.append(r);
+    });
+    const btnAusg=h("button",{className:"btn",style:{marginTop:"10px",fontSize:"13px"}},["+ Ausgabe eintragen"]);
+    btnAusg.addEventListener("click",()=>{ state.selId=c.id; state.kindForm={betrag:"",notiz:"",typ:"ausgabe",datum:""}; state.kindModal="ausgabe"; render(); });
+    sec3.append(btnAusg);
+    card.append(sec3);
+
+    // Sparziele
+    const sec4=h("div",{className:"section"});
+    sec4.append(h("div",{style:{fontSize:"11px",color:"#6e6e73",marginBottom:"10px"}},["Sparziele"]));
+    (c.sparziele||[]).forEach(sz=>{
+      const spPct=sz.ziel>0?Math.min(100,(sz.gespart/sz.ziel)*100):0;
+      const szWrap=h("div",{style:{marginBottom:"12px"}});
+      const szHdr=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:"13px",marginBottom:"4px"}});
+      szHdr.append(h("span",{style:{fontWeight:"600"}},[sz.name]),h("span",{style:{color:"#6e6e73"}},[fmt(sz.gespart)+" / "+fmt(sz.ziel)]));
+      szWrap.append(szHdr);
+      szWrap.append(h("div",{className:"bar-wrap"},[h("div",{className:"bar",style:{width:spPct+"%",background:col.bar}})]));
+      if(sz.gespart>=sz.ziel){
+        szWrap.append(h("p",{style:{fontSize:"12px",color:col.text,fontWeight:"600"}},["🎉 Ziel erreicht!"]));
+      } else {
+        const btnRow=h("div",{style:{display:"flex",gap:"6px",marginTop:"4px"}});
+        [1,2,5].forEach(b=>{
+          const bb=h("button",{className:"btn",style:{flex:"1",padding:"5px",fontSize:"12px"}},["+"+ fmt(b)]);
+          bb.addEventListener("click",()=>{
+            const next={...state.data,children:state.data.children.map(ch=>{
+              if(ch.id!==c.id) return ch;
+              return {...ch,sparziele:(ch.sparziele||[]).map(s2=>s2.id===sz.id?{...s2,gespart:Math.min(s2.ziel,s2.gespart+b)}:s2)};
+            })};
+            saveData(next);
+          });
+          btnRow.append(bb);
+        });
+        szWrap.append(btnRow);
+      }
+      sec4.append(szWrap);
+    });
+    const btnSz=h("button",{className:"btn",style:{fontSize:"13px"}},["+ Sparziel hinzufügen"]);
+    btnSz.addEventListener("click",()=>{ state.selId=c.id; state.szForm={name:"",ziel:""}; state.kindModal="sparziel"; render(); });
+    sec4.append(btnSz);
+    card.append(sec4);
+    wrap.append(card);
+  });
+
+  // Schloss
+  const lock=h("div",{style:{textAlign:"center",marginTop:"1rem"}});
+  const lockBtn=h("button",{className:"btn-ghost",style:{fontSize:"12px",color:"#c7c7cc"}},["🔒"]);
+  lockBtn.addEventListener("click",()=>{ state.settingPin=!state.savedPin; state.mode="pin"; render(); });
+  lock.append(lockBtn);
+  wrap.append(lock);
+
+  // Modals
+  if(state.kindModal==="ausgabe"){
+    const m=buildModal("Ausgabe eintragen",()=>{state.kindModal=null;render();});
+    const bI=addField(m,"Betrag (€)","number","0,00","kindForm","betrag");
+    const nI=addField(m,"Wofür?","text","z. B. Kino, Eis …","kindForm","notiz");
+    const dI=addField(m,"Datum","date","","kindForm","datum");
+    addModalBtns(m,()=>{state.kindModal=null;render();},()=>{
+      const betrag=parseFloat(state.kindForm.betrag.replace(",","."));
+      if(!betrag||betrag<=0) return;
+      const txDatum=state.kindForm.datum?new Date(state.kindForm.datum).toISOString():new Date().toISOString();
+      const txMk=state.kindForm.datum?state.kindForm.datum.slice(0,7):state.month;
+      const tx={id:Date.now().toString(),typ:"ausgabe",betrag,notiz:state.kindForm.notiz.trim(),datum:txDatum,monatKey:txMk};
+      const next={...state.data,children:state.data.children.map(c=>c.id===state.selId?{...c,transaktionen:[tx,...(c.transaktionen||[])]}:c)};
+      state.kindModal=null; saveData(next);
+    },"Speichern");
+    wrap.append(m);
+  }
+  if(state.kindModal==="sparziel"){
+    const m=buildModal("Sparziel hinzufügen",()=>{state.kindModal=null;render();});
+    addField(m,"Wofür sparst du?","text","z. B. Fahrrad …","szForm","name");
+    addField(m,"Zielbetrag (€)","text","z. B. 50,00","szForm","ziel");
+    addModalBtns(m,()=>{state.kindModal=null;render();},()=>{
+      if(!state.szForm.name.trim()) return;
+      const ziel=parseFloat(state.szForm.ziel.replace(",","."))||0;
+      const sz={id:Date.now().toString(),name:state.szForm.name.trim(),ziel,gespart:0};
+      const next={...state.data,children:state.data.children.map(c=>c.id===state.selId?{...c,sparziele:[...(c.sparziele||[]),sz]}:c)};
+      state.kindModal=null; saveData(next);
+    },"Speichern");
+    wrap.append(m);
+  }
+  if(state.mode==="pin") wrap.append(renderPinOverlay());
+  return wrap;
+};
+
+const renderEltern = () => {
+  const wrap=h("div",{className:"app"});
+
+  if(state.view==="home"){
+    const hdr=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem"}});
+    const logoutBtn=h("button",{className:"btn",style:{width:"auto",padding:"6px 14px",fontSize:"13px",color:"#6e6e73"}},["🔒 Abmelden"]);
+    logoutBtn.addEventListener("click",()=>{ state.mode="kind"; render(); });
+    hdr.append(monthNav(true),logoutBtn);
+    wrap.append(hdr);
+    wrap.append(statusBar());
+
+    const kids=state.data.children||[];
+    if(!kids.length) wrap.append(h("p",{style:{color:"#6e6e73",fontSize:"14px",marginBottom:"1rem"}},["Noch keine Kinder angelegt."]));
+    kids.forEach((c,i)=>{
+      const col=COLS[i%COLS.length],s=calcStats(c,state.month);
+      const pct=s.vereinbart>0?Math.min(100,((s.elternGesamt+s.carryOver)/s.vereinbart)*100):0;
+      const card=h("div",{className:"card",style:{cursor:"pointer"}});
+      card.addEventListener("click",()=>{ state.selId=c.id; state.view="child"; render(); });
+      const av=h("div",{className:"avatar",style:{background:col.bg,color:col.text}},[inits(c.name)]);
+      const info=h("div",{style:{flex:"1"}});
+      info.append(h("p",{style:{fontWeight:"600",fontSize:"15px"}},[c.name]));
+      info.append(h("p",{style:{fontSize:"12px",color:"#6e6e73"}},[fmt(s.vereinbart)+"/Monat · ausgegeben "+fmt(s.ausgaben)]));
+      const right=h("div",{style:{textAlign:"right"}});
+      right.append(h("p",{style:{fontSize:"11px",color:"#6e6e73"}},["noch offen"]));
+      right.append(h("p",{style:{fontSize:"17px",fontWeight:"600",color:s.netOffen<0?"#833b0a":s.offen>0?col.text:"#aaa"}},[s.netOffen<0?`−${fmt(-s.netOffen)}`:fmt(s.offen)]));
+      card.append(h("div",{className:"card-header"},[av,info,right]));
+      const barWrap=h("div",{style:{padding:"0 18px 6px"}});
+      barWrap.append(h("div",{className:"bar-wrap"},[h("div",{className:"bar",style:{width:pct+"%",background:s.netOffen<0?"#ef9f27":col.bar}})]));
+      card.append(barWrap);
+      const foot=h("div",{style:{display:"flex",justifyContent:"space-between",padding:"4px 18px 12px",fontSize:"11px",color:"#6e6e73"}});
+      foot.append(h("span",{},["Bargeld "+fmt(s.ausgezahlt)]),h("span",{},["Auslagen "+fmt(s.auslagen)]));
+      if(s.carryOver>0) foot.append(h("span",{style:{color:"#833b0a"}},["Übertrag −"+fmt(s.carryOver)]));
+      card.append(foot);
+      wrap.append(card);
+    });
+    const addBtn=h("button",{className:"btn"},["+  Kind hinzufügen"]);
+    addBtn.addEventListener("click",()=>{ state.view="add-child"; render(); });
+    wrap.append(addBtn);
+  }
+
+  else if(state.view==="add-child"){
+    wrap.append(h("h2",{},["Kind hinzufügen"]));
+    const nI=addFieldTo(wrap,"Name","text","z. B. Luisa");
+    const mI=addFieldTo(wrap,"Vereinbartes Taschengeld / Monat (€)","text","z. B. 20,00");
+    mI.parentElement.style.marginBottom="20px";
+    const btns=h("div",{className:"flex"});
+    const cBtn=h("button",{className:"btn",style:{color:"#6e6e73"}},["Abbrechen"]);
+    cBtn.addEventListener("click",()=>{ state.view="home"; render(); });
+    const sBtn=h("button",{className:"btn"},["Speichern"]);
+    sBtn.addEventListener("click",()=>{
+      if(!nI.value.trim()) return;
+      const mb=parseFloat(mI.value.replace(",","."))||0;
+      const next={...state.data,children:[...state.data.children,{id:Date.now().toString(),name:nI.value.trim(),monatlBetrag:mb,transaktionen:[],sparziele:[]}]};
+      state.view="home"; saveData(next);
+    });
+    btns.append(cBtn,sBtn);
+    wrap.append(btns);
+  }
+
+  else if(state.view==="child"){
+    const c=state.data.children.find(x=>x.id===state.selId);
+    const col=COLS[(state.data.children.indexOf(c))%COLS.length];
+    const s=calcStats(c,state.month);
+    const pct=s.vereinbart>0?Math.min(100,((s.elternGesamt+s.carryOver)/s.vereinbart)*100):0;
+
+    const topBar=h("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"1rem"}});
+    const back=h("button",{className:"btn-ghost"},["←"]);
+    back.addEventListener("click",()=>{ state.view="home"; render(); });
+    const mnav=monthNav();
+    mnav.style.flex="1";
+    mnav.style.justifyContent="center";
+    mnav.style.display="flex";
+    topBar.append(back,mnav,h("div",{style:{width:"24px"}}));
+    wrap.append(topBar);
+    wrap.append(statusBar());
+
+    // Stats
+    const grid=h("div",{className:"grid2"});
+    const vBox=h("div",{className:"stat-box",style:{cursor:"pointer"}});
+    vBox.append(h("div",{className:"stat-label"},["Vereinbart ✎"]),h("div",{className:"stat-val"},[fmt(s.vereinbart)]));
+    vBox.addEventListener("click",()=>{ state.editMonatl=String(c.monatlBetrag||""); state.modal="edit-monatl"; render(); });
+    grid.append(vBox,h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Bargeld"]),h("div",{className:"stat-val"},[fmt(s.ausgezahlt)])]));
+    wrap.append(grid);
+
+    const grid2=h("div",{className:"grid2",style:{marginTop:"8px"}});
+    grid2.append(h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Auslagen"]),h("div",{className:"stat-val"},[fmt(s.auslagen)])]),h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Kind ausgegeben"]),h("div",{className:"stat-val",style:{color:"#d4537e"}},[fmt(s.ausgaben)])]));
+    wrap.append(grid2);
+
+    if(s.carryOver>0) wrap.append(h("div",{className:"carry-box",style:{marginTop:"10px"}},[h("span",{},["Übertrag aus Vormonat"]),h("span",{style:{fontWeight:"600"}},["−"+fmt(s.carryOver)])]));
+
+    // Progress
+    const prog=h("div",{className:"card",style:{padding:"12px 14px",marginTop:"10px",marginBottom:"1rem"}});
+    const pRow=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:"13px",marginBottom:"8px"}});
+    pRow.append(h("span",{style:{color:"#6e6e73"}},["Verrechnet "+fmt(s.elternGesamt)]));
+    if(s.netOffen>=0) pRow.append(h("span",{style:{fontWeight:"600",color:s.offen>0?col.text:"#aaa"}},["Noch offen: "+fmt(s.offen)]));
+    else pRow.append(h("span",{style:{fontWeight:"600",color:"#833b0a"}},["Schulden: "+fmt(-s.netOffen)+" → Folgemonat"]));
+    prog.append(pRow,h("div",{className:"bar-wrap"},[h("div",{className:"bar",style:{width:pct+"%",background:s.netOffen<0?"#ef9f27":col.bar}})]));
+    wrap.append(prog);
+
+    // Action buttons
+    const btnRow=h("div",{className:"grid2",style:{marginBottom:"1.5rem"}});
+    const b1=h("button",{className:"btn"},["Bargeld ausgezahlt"]);
+    b1.addEventListener("click",()=>{ state.form={betrag:"",notiz:"",typ:"taschengeld",datum:""}; state.modal="buchen"; render(); });
+    const b2=h("button",{className:"btn"},["Auslage verbuchen"]);
+    b2.addEventListener("click",()=>{ state.form={betrag:"",notiz:"",typ:"auslage",datum:""}; state.modal="buchen"; render(); });
+    btnRow.append(b1,b2);
+    wrap.append(btnRow);
+
+    // Transaktionen
+    wrap.append(h("p",{style:{fontSize:"13px",color:"#6e6e73",fontWeight:"600",marginBottom:"8px"}},["Transaktionen "+mLabel(state.month)]));
+    if(!s.txs.length) wrap.append(h("p",{style:{fontSize:"13px",color:"#6e6e73"}},["Noch keine Einträge."]));
+    const txList=h("div",{style:{display:"flex",flexDirection:"column",gap:"6px"}});
+    const LABELS={taschengeld:"Bargeld",auslage:"Auslage",ausgabe:"Kind"};
+    const BGS={taschengeld:"#e1f5ee",auslage:"#faeeda",ausgabe:"#fbeaf0"};
+    const TCOLS={taschengeld:"#04342c",auslage:"#412402",ausgabe:"#4b1528"};
+    s.txs.forEach(tx=>{
+      const row=h("div",{style:{display:"flex",alignItems:"center",gap:"10px",padding:"10px 12px",background:"#fff",borderRadius:"10px",border:"1px solid #e5e5ea"}});
+      row.append(h("span",{className:"tag",style:{background:BGS[tx.typ]||"#eee",color:TCOLS[tx.typ]||"#333"}},[LABELS[tx.typ]||tx.typ]));
+      const inf=h("div",{style:{flex:"1",minWidth:"0"}});
+      inf.append(h("p",{style:{fontSize:"13px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},[tx.notiz||"–"]));
+      inf.append(h("p",{style:{fontSize:"11px",color:"#6e6e73"}},[fmtD(tx.datum)]));
+      row.append(inf,h("span",{style:{fontSize:"13px",fontWeight:"600",flexShrink:"0"}},[fmt(tx.betrag)]));
+      if(tx.typ!=="ausgabe"){
+        const del=h("button",{className:"btn-ghost",style:{fontSize:"16px",padding:"0 2px"}},["×"]);
+        del.addEventListener("click",()=>{
+          const next={...state.data,children:state.data.children.map(ch=>ch.id===state.selId?{...ch,transaktionen:ch.transaktionen.filter(t=>t.id!==tx.id)}:ch)};
+          saveData(next);
+        });
+        row.append(del);
+      }
+      txList.append(row);
+    });
+    wrap.append(txList);
+
+    // Modals
+    if(state.modal==="buchen"){
+      const m=buildModal(state.form.typ==="taschengeld"?"Bargeld ausgezahlt":"Auslage verbuchen",()=>{state.modal=null;render();});
+      addField(m,"Betrag (€)","text","0,00","form","betrag");
+      addField(m,"Wofür?","text",state.form.typ==="auslage"?"z. B. Turnschuhe …":"z. B. Taschengeld Mai","form","notiz");
+      if(state.form.typ==="auslage") addField(m,"Datum der Auslage","date","","form","datum");
+      addModalBtns(m,()=>{state.modal=null;render();},()=>{
+        const betrag=parseFloat(state.form.betrag.replace(",","."));
+        if(!betrag||betrag<=0) return;
+        const txDatum=state.form.datum?new Date(state.form.datum).toISOString():new Date().toISOString();
+        const txMk=state.form.datum?state.form.datum.slice(0,7):state.month;
+        const tx={id:Date.now().toString(),typ:state.form.typ,betrag,notiz:state.form.notiz.trim(),datum:txDatum,monatKey:txMk};
+        const next={...state.data,children:state.data.children.map(ch=>ch.id===state.selId?{...ch,transaktionen:[tx,...(ch.transaktionen||[])]}:ch)};
+        state.modal=null; saveData(next);
+      },"Speichern");
+      wrap.append(m);
+    }
+    if(state.modal==="edit-monatl"){
+      const m=buildModal("Vereinbartes Taschengeld",()=>{state.modal=null;render();});
+      addField(m,"Betrag pro Monat (€)","text","z. B. 25,00","editMonatl",null);
+      addModalBtns(m,()=>{state.modal=null;render();},()=>{
+        const v=parseFloat(state.editMonatl.replace(",","."));
+        if(isNaN(v)||v<0) return;
+        const next={...state.data,children:state.data.children.map(ch=>ch.id===state.selId?{...ch,monatlBetrag:v}:ch)};
+        state.modal=null; saveData(next);
+      },"Speichern");
+      wrap.append(m);
+    }
+  }
+  return wrap;
+};
+
+// ── Modal helpers ──────────────────────────────────────────────────────────
+const buildModal = (title, onClose) => {
+  const bg=h("div",{className:"modal-bg"});
+  const box=h("div",{className:"modal"});
+  box.append(h("div",{className:"modal-title"},[title]));
+  bg.append(box);
+  bg.addEventListener("click",e=>{ if(e.target===bg) onClose(); });
+  bg._box=box;
+  return bg;
+};
+const addField = (modal, label, type, placeholder, stateKey, propKey) => {
+  const box=modal._box;
+  const inp=h("input",{type,placeholder});
+  inp.value = propKey ? state[stateKey][propKey] : state[stateKey];
+  inp.addEventListener("input",e=>{
+    if(propKey) state[stateKey][propKey]=e.target.value;
+    else state[stateKey]=e.target.value;
+  });
+  const wrap=h("div",{className:"field",style:{marginBottom:"14px"}},[h("label",{},[label]),inp]);
+  box.append(wrap);
+  return inp;
+};
+const addFieldTo = (parent, label, type, placeholder) => {
+  const inp=h("input",{type,placeholder});
+  parent.append(h("div",{className:"field",style:{marginBottom:"14px"}},[h("label",{},[label]),inp]));
+  return inp;
+};
+const addModalBtns = (modal, onCancel, onSave, saveLabel="Speichern") => {
+  const box=modal._box;
+  const row=h("div",{className:"flex",style:{marginTop:"4px"}});
+  const c=h("button",{className:"btn",style:{color:"#6e6e73"}},["Abbrechen"]);
+  c.addEventListener("click",onCancel);
+  const s=h("button",{className:"btn",style:{fontWeight:"600"}},[saveLabel]);
+  s.addEventListener("click",onSave);
+  row.append(c,s);
+  box.append(row);
+};
+
+const renderPinOverlay = () => {
+  const bg=h("div",{className:"pin-modal-bg"});
+  const box=h("div",{className:"pin-modal"});
+  box.append(h("p",{style:{fontSize:"16px",fontWeight:"600",marginBottom:"6px"}},[state.settingPin?"PIN festlegen":"Eltern-Zugang"]));
+  box.append(h("p",{style:{fontSize:"13px",color:"#6e6e73",marginBottom:"1rem"}},[state.settingPin?"Wähle eine PIN (mind. 4 Stellen).":"Bitte PIN eingeben."]));
+  const inp=h("input",{type:"password",placeholder:"••••",style:{textAlign:"center",fontSize:"20px",letterSpacing:"4px",marginBottom:state.pinError?"8px":"16px"}});
+  inp.value=state.pin;
+  inp.addEventListener("input",e=>{ state.pin=e.target.value; state.pinError=false; });
+  inp.addEventListener("keydown",e=>{ if(e.key==="Enter") doPin(); });
+  box.append(inp);
+  if(state.pinError) box.append(h("p",{style:{fontSize:"12px",color:"#c0392b",marginBottom:"12px"}},[state.savedPin?"Falsche PIN.":"Mindestens 4 Stellen."]));
+  const doPin = () => {
+    if(!state.savedPin){
+      if(state.pin.length<4){state.pinError=true;render();return;}
+      localStorage.setItem("tg-pin",state.pin);
+      state.savedPin=state.pin; state.pin=""; state.settingPin=false; state.mode="eltern"; render();
+    } else {
+      if(state.pin===state.savedPin){state.pin="";state.pinError=false;state.mode="eltern";render();}
+      else{state.pinError=true;state.pin="";render();}
+    }
+  };
+  const btnRow=h("div",{className:"flex"});
+  const c=h("button",{className:"btn",style:{color:"#6e6e73"}},["Abbrechen"]);
+  c.addEventListener("click",()=>{ state.mode="kind"; state.pin=""; state.pinError=false; state.settingPin=false; render(); });
+  const ok=h("button",{className:"btn",style:{fontWeight:"600"}},["OK"]);
+  ok.addEventListener("click",doPin);
+  btnRow.append(c,ok);
+  box.append(btnRow);
+  if(state.savedPin){
+    const reset=h("button",{className:"btn-ghost",style:{width:"100%",textAlign:"center",marginTop:"12px",textDecoration:"underline"}},["PIN vergessen – neu festlegen"]);
+    reset.addEventListener("click",()=>{ localStorage.removeItem("tg-pin"); state.savedPin=""; state.pin=""; state.pinError=false; state.settingPin=true; render(); });
+    box.append(reset);
+  }
+  bg.append(box);
+  return bg;
+};
+
+// ── Main render ────────────────────────────────────────────────────────────
+const render = () => {
+  const root=document.getElementById("root");
+  root.innerHTML="";
+  if(!state.configured||state.loading&&!state.data.children.length) {
+    root.append(renderSetup());
+    return;
+  }
+  if(state.mode==="eltern") root.append(renderEltern());
+  else root.append(renderKind());
+};
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(async()=>{
+  if(state.configured){
+    state.loading=true; render();
+    try { state.data=await loadSB(); } catch{}
+    state.loading=false; render();
+  } else { render(); }
+})();
+</script>
+</body>
+</html>

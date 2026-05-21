@@ -150,9 +150,8 @@ const navigate = (url, mode, extras={}) => {
 };
 const initRoute = () => {
   const p = new URLSearchParams(window.location.search);
-  if(p.has('eltern')){ S.settingPin=!S.savedPin; S.mode='pin'; }
-  else if(p.get('kind')){ S.activeKindId=p.get('kind'); S.mode='kind'; }
-  else S.mode='root';
+  if(p.get('kind')){ S.activeKindId=p.get('kind'); S.mode='kind'; }
+  else { S.settingPin=!S.savedPin; S.mode='pin'; }
 };
 
 // ── DOM helpers ────────────────────────────────────────────────────────────
@@ -234,10 +233,7 @@ const renderPin = () => {
   box.append(inp);
   if(S.pinError) box.append(h("p",{style:{fontSize:"12px",color:"#c0392b",marginBottom:"12px"}},[S.savedPin?"Falsche PIN.":"Mindestens 4 Stellen."]));
   const row=h("div",{className:"flex"});
-  row.append(
-    on(h("button",{className:"btn",style:{color:"#6e6e73"}},["Abbrechen"]),"click",()=>{S.pin="";S.pinError=false;S.settingPin=false;navigate("/","root",{activeKindId:null});}),
-    on(h("button",{className:"btn",style:{fontWeight:"600"}},["OK"]),"click",doPin)
-  );
+  row.append(on(h("button",{className:"btn",style:{fontWeight:"600"}},["OK"]),"click",doPin));
   box.append(row);
   if(S.savedPin){
     box.append(on(h("button",{className:"btn-ghost",style:{width:"100%",textAlign:"center",marginTop:"12px",textDecoration:"underline"}},["PIN vergessen – neu festlegen"]),"click",()=>{
@@ -279,7 +275,7 @@ const renderKindPin = () => {
   if(S.kindPinError) box.append(h("p",{style:{fontSize:"12px",color:"#c0392b",marginBottom:"12px"}},[setting?"Mindestens 4 Stellen.":"Falsche PIN."]));
   const row=h("div",{className:"flex"});
   row.append(
-    on(h("button",{className:"btn",style:{color:"#6e6e73"}},["Abbrechen"]),"click",()=>{S.kindPin="";S.kindPinError=false;S.kindSettingPin=false;navigate("/","root",{activeKindId:null});}),
+    on(h("button",{className:"btn",style:{color:"#6e6e73"}},["Abbrechen"]),"click",()=>{S.kindPin="";S.kindPinError=false;S.kindSettingPin=false;S.pin="";S.pinError=false;S.settingPin=false;navigate("/","pin",{activeKindId:null});}),
     on(h("button",{className:"btn",style:{fontWeight:"600"}},["OK"]),"click",doPin)
   );
   box.append(row);
@@ -293,28 +289,6 @@ const renderKindPin = () => {
   return bg;
 };
 
-// ── Root view ──────────────────────────────────────────────────────────────
-const renderRoot = () => {
-  const wrap=h("div",{className:"app"});
-  wrap.append(h("h2",{style:{marginBottom:"1.25rem"}},["Taschengeld"]),statusBar());
-  const ch=S.data.children||[];
-  if(!ch.length){
-    wrap.append(h("p",{style:{fontSize:"14px",color:"#6e6e73",textAlign:"center",marginTop:"3rem",lineHeight:"1.6"}},
-      ["Hier gibt es noch nichts zu sehen. Bitte deine Eltern, die App einzurichten."]));
-    return wrap;
-  }
-  wrap.append(h("p",{style:{fontSize:"14px",color:"#6e6e73",marginBottom:"1.25rem"}},["Wer bist du?"]));
-  ch.forEach((c,i)=>{
-    const col=COLS[i%COLS.length];
-    wrap.append(on(h("button",{className:"btn",style:{
-      marginBottom:"10px",fontWeight:"600",fontSize:"16px",
-      padding:"16px 18px",background:col.bg,color:col.text,
-      border:"none",borderRadius:"12px",textAlign:"left"
-    }},[c.name]),"click",()=>navigate("?kind="+c.id,"kind",{activeKindId:c.id})));
-  });
-  return wrap;
-};
-
 // ── Kind view ──────────────────────────────────────────────────────────────
 const renderKind = () => {
   const wrap=h("div",{className:"app"});
@@ -326,7 +300,7 @@ const renderKind = () => {
   const _kindCh=S.activeKindId?_allCh.filter(c=>c.id===S.activeKindId):_allCh;
   if(S.activeKindId&&!_kindCh.length){
     wrap.append(h("p",{style:{textAlign:"center",color:"#6e6e73",marginTop:"2rem"}},["Kind nicht gefunden."]));
-    wrap.append(on(h("button",{className:"btn",style:{marginTop:"1rem"}},["Zur Startseite"]),"click",()=>navigate("/","root",{activeKindId:null})));
+    wrap.append(on(h("button",{className:"btn",style:{marginTop:"1rem"}},["Zur Startseite"]),"click",()=>{S.pin="";S.pinError=false;S.settingPin=false;navigate("/","pin",{activeKindId:null});}));
     return wrap;
   }
   _kindCh.forEach((c)=>{
@@ -409,7 +383,7 @@ const renderKind = () => {
   });
 
   wrap.append(h("div",{style:{display:"flex",justifyContent:"center",gap:"20px",marginTop:"1.5rem"}},[
-    on(h("button",{className:"btn-ghost",style:{fontSize:"13px",color:"#6e6e73"}},["Abmelden"]),"click",()=>navigate("/","root",{activeKindId:null})),
+    on(h("button",{className:"btn-ghost",style:{fontSize:"13px",color:"#6e6e73"}},["Abmelden"]),"click",()=>{S.kindPinOk=false;S.kindPin="";S.kindPinError=false;render();}),
     on(h("button",{className:"btn-ghost",style:{fontSize:"13px",color:"#6e6e73"}},["PIN ändern"]),"click",()=>{
       localStorage.removeItem("tg-kid-pin-"+S.activeKindId);
       S.kindPin="";S.kindPinError=false;S.kindSettingPin=false;S.kindPinOk=false;render();
@@ -452,7 +426,7 @@ const renderEltern = () => {
 
   if(S.view==="home"){
     const hdr=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem"}});
-    hdr.append(monthNav(true),on(h("button",{className:"btn",style:{width:"auto",padding:"6px 14px",fontSize:"13px",color:"#6e6e73"}},["🔒 Abmelden"]),"click",()=>{navigate("/","root",{activeKindId:null});}));
+    hdr.append(monthNav(true),on(h("button",{className:"btn",style:{width:"auto",padding:"6px 14px",fontSize:"13px",color:"#6e6e73"}},["🔒 Abmelden"]),"click",()=>{S.pin="";S.pinError=false;S.settingPin=false;navigate("/","pin",{activeKindId:null});}));
     wrap.append(hdr,statusBar());
     (S.data.children||[]).forEach((c,i)=>{
       const col=COLS[i%COLS.length],s=calcStats(c,S.month);
@@ -582,7 +556,6 @@ const render = () => {
   if(S.mode==="kind"&&!S.kindPinOk){ root.append(renderKindPin()); return; }
   if(S.mode==="eltern") root.append(renderEltern());
   else if(S.mode==="kind") root.append(renderKind());
-  else root.append(renderRoot());
 };
 
 // ── Init ───────────────────────────────────────────────────────────────────

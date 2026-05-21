@@ -85,6 +85,11 @@ const todayKey = () => { const d=new Date(); return `${d.getFullYear()}-${String
 const mLabel = k => { const [y,m]=k.split("-"); return `${MONTHS[+m-1]} ${y}`; };
 const inits = n => n.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
 const stepM = (mk,d) => { const [y,m]=mk.split("-").map(Number); const dt=new Date(y,m-1+d,1); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`; };
+// T8 — Wöchentlicher Zahlungsintervall
+const vereinbartProMonat = c => {
+  const b = c.vereinbartBetrag !== undefined ? c.vereinbartBetrag : (c.monatlBetrag || 0);
+  return c.intervall === "wöchentlich" ? b * 4 : b;
+};
 
 // ── State ──────────────────────────────────────────────────────────────────
 let S = {
@@ -101,8 +106,9 @@ let S = {
   kindForm: {betrag:"",notiz:"",typ:"ausgabe",datum:""},
   kindModal: null,
   szForm: {name:"",ziel:""},
-  newChild: {name:"",monatlBetrag:""},
+  newChild: {name:"",vereinbartBetrag:"",intervall:"monatlich"},
   editMonatl: "",
+  editIntervall: "monatlich",
   editingChildName: false,
   childNameInput: "",
   activeKindId: null,
@@ -122,7 +128,7 @@ const getCarryOver = (c, beforeMk) => {
   return keys.reduce((debt,mk)=>{
     const txs=(c.transaktionen||[]).filter(t=>t.monatKey===mk);
     const el=txs.filter(t=>t.typ==="taschengeld"||t.typ==="auslage").reduce((s,t)=>s+t.betrag,0);
-    return debt+el-(c.monatlBetrag||0);
+    return debt+el-vereinbartProMonat(c);
   },0);
 };
 const calcStats = (c,mk) => {
@@ -131,7 +137,7 @@ const calcStats = (c,mk) => {
   const auslagen=txs.filter(t=>t.typ==="auslage").reduce((s,t)=>s+t.betrag,0);
   const ausgaben=txs.filter(t=>t.typ==="ausgabe").reduce((s,t)=>s+t.betrag,0);
   const elternGesamt=ausgezahlt+auslagen;
-  const vereinbart=c.monatlBetrag||0;
+  const vereinbart=vereinbartProMonat(c);
   const carryOver=getCarryOver(c,mk);
   const netOffen=vereinbart-carryOver-elternGesamt;
   return {ausgezahlt,auslagen,ausgaben,elternGesamt,vereinbart,carryOver,netOffen,offen:Math.max(0,netOffen),verfuegbar:Math.max(0,ausgezahlt-ausgaben),txs};
@@ -462,7 +468,9 @@ const renderEltern = () => {
       const pct=s.vereinbart>0?Math.min(100,((s.elternGesamt+s.carryOver)/s.vereinbart)*100):0;
       const card=on(h("div",{className:"card",style:{cursor:"pointer"}}),"click",()=>{S.selId=c.id;S.view="child";render();});
       const info=h("div",{style:{flex:"1"}});
-      info.append(h("p",{style:{fontWeight:"600",fontSize:"15px"}},[c.name]),h("p",{style:{fontSize:"12px",color:"#6e6e73"}},[fmt(s.vereinbart)+"/Monat · ausgegeben "+fmt(s.ausgaben)]));
+      const rawB=c.vereinbartBetrag!==undefined?c.vereinbartBetrag:(c.monatlBetrag||0);
+      const ivLabel=c.intervall==="wöchentlich"?"/Woche":"/Monat";
+      info.append(h("p",{style:{fontWeight:"600",fontSize:"15px"}},[c.name]),h("p",{style:{fontSize:"12px",color:"#6e6e73"}},[fmt(rawB)+ivLabel+" · ausgegeben "+fmt(s.ausgaben)]));
       const right=h("div",{style:{textAlign:"right"}});
       right.append(h("p",{style:{fontSize:"11px",color:"#6e6e73"}},["noch offen"]),h("p",{style:{fontSize:"17px",fontWeight:"600",color:s.netOffen<0?"#833b0a":s.offen>0?col.text:"#aaa"}},[s.netOffen<0?`−${fmt(-s.netOffen)}`:fmt(s.offen)]));
       card.append(h("div",{className:"card-header"},[h("div",{className:"avatar",style:{background:col.bg,color:col.text}},[inits(c.name)]),info,right]));
@@ -481,14 +489,28 @@ const renderEltern = () => {
   else if(S.view==="add-child"){
     wrap.append(h("h2",{},["Kind hinzufügen"]));
     const nI=h("input",{type:"text",placeholder:"z. B. Luisa"});
+    // Interval toggle
+    const ivWrap=h("div",{className:"field"});
+    ivWrap.append(h("label",{},["Zahlungsintervall"]));
+    const ivRow=h("div",{style:{display:"flex",gap:"6px",marginTop:"2px"}});
+    ["monatlich","wöchentlich"].forEach(iv=>{
+      const active=S.newChild.intervall===iv;
+      ivRow.append(on(h("button",{className:"btn",style:{fontWeight:active?"700":"400",background:active?"#007aff":"#fff",color:active?"#fff":"#1d1d1f",border:active?"1px solid #007aff":"1px solid #d1d1d6"}},[iv==="monatlich"?"Monatlich":"Wöchentlich"]),"click",()=>{S.newChild.intervall=iv;render();}));
+    });
+    ivWrap.append(ivRow);
+    const mLabel2=S.newChild.intervall==="wöchentlich"?"Taschengeld / Woche (€)":"Taschengeld / Monat (€)";
     const mI=h("input",{type:"text",placeholder:"z. B. 20,00"});
-    wrap.append(h("div",{className:"field"},[h("label",{},["Name"]),nI]),h("div",{className:"field",style:{marginBottom:"20px"}},[h("label",{},["Taschengeld / Monat (€)"]),mI]));
+    mI.value=S.newChild.vereinbartBetrag||"";
+    on(mI,"input",e=>{S.newChild.vereinbartBetrag=e.target.value;});
+    wrap.append(h("div",{className:"field"},[h("label",{},["Name"]),nI]),ivWrap,h("div",{className:"field",style:{marginBottom:"20px"}},[h("label",{},[mLabel2]),mI]));
     const row=h("div",{className:"flex"});
     row.append(
       on(h("button",{className:"btn",style:{color:"#6e6e73"}},["Abbrechen"]),"click",()=>{S.view="home";render();}),
       on(h("button",{className:"btn",style:{fontWeight:"600"}},["Speichern"]),"click",()=>{
         if(!nI.value.trim()) return;
-        const next={...S.data,children:[...S.data.children,{id:Date.now().toString(),name:nI.value.trim(),monatlBetrag:parseFloat(mI.value.replace(",","."))||0,transaktionen:[],sparziele:[]}]};
+        const vereinbartBetrag=parseFloat((S.newChild.vereinbartBetrag||"0").replace(",","."))||0;
+        const next={...S.data,children:[...S.data.children,{id:Date.now().toString(),name:nI.value.trim(),vereinbartBetrag,intervall:S.newChild.intervall||"monatlich",transaktionen:[],sparziele:[]}]};
+        S.newChild={name:"",vereinbartBetrag:"",intervall:"monatlich"};
         S.view="home"; saveData(next);
       })
     );
@@ -524,7 +546,9 @@ const renderEltern = () => {
     wrap.append(nameRow);
 
     const g1=h("div",{className:"grid2"});
-    const vBox=on(h("div",{className:"stat-box",style:{cursor:"pointer"}},[h("div",{className:"stat-label"},["Vereinbart ✎"]),h("div",{className:"stat-val"},[fmt(s.vereinbart)])]),"click",()=>{S.editMonatl=String(c.monatlBetrag||"");S.modal="edit-monatl";render();});
+    const rawBetrag=c.vereinbartBetrag!==undefined?c.vereinbartBetrag:(c.monatlBetrag||0);
+    const ivLabelStat=c.intervall==="wöchentlich"?" /Wo":" /Mo";
+    const vBox=on(h("div",{className:"stat-box",style:{cursor:"pointer"}},[h("div",{className:"stat-label"},["Vereinbart ✎"]),h("div",{className:"stat-val"},[fmt(s.vereinbart)]),h("div",{style:{fontSize:"10px",color:"#aaa",marginTop:"2px"}},[c.intervall==="wöchentlich"?"(4×"+fmt(rawBetrag)+")":" "])]),"click",()=>{S.editMonatl=String(rawBetrag||"");S.editIntervall=c.intervall||"monatlich";S.modal="edit-monatl";render();});
     g1.append(vBox,h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Bargeld"]),h("div",{className:"stat-val"},[fmt(s.ausgezahlt)])]));
     const g2=h("div",{className:"grid2",style:{marginTop:"8px"}});
     g2.append(h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Auslagen"]),h("div",{className:"stat-val"},[fmt(s.auslagen)])]),h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Kind ausgegeben"]),h("div",{className:"stat-val",style:{color:"#d4537e"}},[fmt(s.ausgaben)])]));
@@ -599,12 +623,20 @@ const renderEltern = () => {
     }
     if(S.modal==="edit-monatl"){
       const m=buildModal("Vereinbartes Taschengeld",()=>{S.modal=null;render();});
-      addField(m,"Betrag pro Monat (€)","text","z. B. 25,00","editMonatl",null);
+      const ivRow=h("div",{style:{display:"flex",gap:"6px",marginBottom:"14px"}});
+      ["monatlich","wöchentlich"].forEach(iv=>{
+        const active=S.editIntervall===iv;
+        const btn=on(h("button",{className:"btn",style:{fontWeight:active?"700":"400",background:active?"#007aff":"#fff",color:active?"#fff":"#1d1d1f",border:active?"1px solid #007aff":"1px solid #d1d1d6"}},[iv==="monatlich"?"Monatlich":"Wöchentlich"]),"click",()=>{S.editIntervall=iv;render();});
+        ivRow.append(btn);
+      });
+      m._box.append(ivRow);
+      const ivLabel=S.editIntervall==="wöchentlich"?"Betrag pro Woche (€)":"Betrag pro Monat (€)";
+      addField(m,ivLabel,"text","z. B. 25,00","editMonatl",null);
       addModalBtns(m,()=>{S.modal=null;render();},()=>{
         const v=parseFloat(S.editMonatl.replace(",","."));
         if(isNaN(v)||v<0) return;
         S.modal=null;
-        saveData({...S.data,children:S.data.children.map(ch=>ch.id===S.selId?{...ch,monatlBetrag:v}:ch)});
+        saveData({...S.data,children:S.data.children.map(ch=>ch.id===S.selId?{...ch,vereinbartBetrag:v,intervall:S.editIntervall}:ch)});
       });
       wrap.append(m);
     }

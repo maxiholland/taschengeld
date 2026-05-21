@@ -103,6 +103,10 @@ let S = {
   newChild: {name:"",monatlBetrag:""},
   editMonatl: "",
   activeKindId: null,
+  kindPinOk: false,
+  kindPin: "",
+  kindPinError: false,
+  kindSettingPin: false,
   pin: "",
   savedPin: localStorage.getItem("tg-pin")||"",
   pinError: false,
@@ -141,6 +145,7 @@ const navigate = (url, mode, extras={}) => {
   history.pushState({}, '', url);
   S.mode = mode;
   Object.assign(S, extras);
+  if(mode==='kind') S.kindPinOk=false;
   render();
 };
 const initRoute = () => {
@@ -237,6 +242,51 @@ const renderPin = () => {
   if(S.savedPin){
     box.append(on(h("button",{className:"btn-ghost",style:{width:"100%",textAlign:"center",marginTop:"12px",textDecoration:"underline"}},["PIN vergessen – neu festlegen"]),"click",()=>{
       localStorage.removeItem("tg-pin"); S.savedPin=""; S.pin=""; S.pinError=false; S.settingPin=true; render();
+    }));
+  }
+  bg.append(box);
+  return bg;
+};
+
+// ── Kind PIN overlay ───────────────────────────────────────────────────────
+const renderKindPin = () => {
+  const id=S.activeKindId;
+  const saved=localStorage.getItem("tg-kid-pin-"+id)||"";
+  const setting=S.kindSettingPin||!saved;
+  const child=(S.data.children||[]).find(c=>c.id===id);
+  const name=child?child.name:"";
+  const bg=h("div",{className:"pin-modal-bg"});
+  const box=h("div",{className:"pin-modal"});
+  box.append(
+    h("p",{style:{fontSize:"16px",fontWeight:"600",marginBottom:"6px"}},[setting?"PIN festlegen":"Hallo"+(name?", "+name:"")+"!"]),
+    h("p",{style:{fontSize:"13px",color:"#6e6e73",marginBottom:"1rem"}},[setting?"Wähle eine PIN (mind. 4 Stellen).":"Bitte PIN eingeben."])
+  );
+  const inp=h("input",{type:"password",placeholder:"••••",style:{textAlign:"center",fontSize:"20px",letterSpacing:"4px",marginBottom:S.kindPinError?"8px":"16px"}});
+  inp.value=S.kindPin;
+  const doPin=()=>{
+    if(setting){
+      if(S.kindPin.length<4){S.kindPinError=true;render();return;}
+      localStorage.setItem("tg-kid-pin-"+id,S.kindPin);
+      S.kindPin="";S.kindPinError=false;S.kindSettingPin=false;S.kindPinOk=true;render();
+    } else {
+      if(S.kindPin===saved){S.kindPin="";S.kindPinError=false;S.kindPinOk=true;render();}
+      else{S.kindPinError=true;S.kindPin="";render();}
+    }
+  };
+  on(inp,"input",e=>{S.kindPin=e.target.value;S.kindPinError=false;});
+  on(inp,"keydown",e=>{if(e.key==="Enter")doPin();});
+  box.append(inp);
+  if(S.kindPinError) box.append(h("p",{style:{fontSize:"12px",color:"#c0392b",marginBottom:"12px"}},[setting?"Mindestens 4 Stellen.":"Falsche PIN."]));
+  const row=h("div",{className:"flex"});
+  row.append(
+    on(h("button",{className:"btn",style:{color:"#6e6e73"}},["Abbrechen"]),"click",()=>{S.kindPin="";S.kindPinError=false;S.kindSettingPin=false;navigate("/","root",{activeKindId:null});}),
+    on(h("button",{className:"btn",style:{fontWeight:"600"}},["OK"]),"click",doPin)
+  );
+  box.append(row);
+  if(saved&&!setting){
+    box.append(on(h("button",{className:"btn-ghost",style:{width:"100%",textAlign:"center",marginTop:"12px",textDecoration:"underline"}},["PIN vergessen – neu festlegen"]),"click",()=>{
+      localStorage.removeItem("tg-kid-pin-"+id);
+      S.kindPin="";S.kindPinError=false;S.kindSettingPin=false;render();
     }));
   }
   bg.append(box);
@@ -358,8 +408,12 @@ const renderKind = () => {
     wrap.append(card);
   });
 
-  wrap.append(h("div",{style:{textAlign:"center",marginTop:"1.5rem"}},[
-    on(h("button",{className:"btn-ghost",style:{fontSize:"13px",color:"#6e6e73"}},["Abmelden"]),"click",()=>navigate("/","root",{activeKindId:null}))
+  wrap.append(h("div",{style:{display:"flex",justifyContent:"center",gap:"20px",marginTop:"1.5rem"}},[
+    on(h("button",{className:"btn-ghost",style:{fontSize:"13px",color:"#6e6e73"}},["Abmelden"]),"click",()=>navigate("/","root",{activeKindId:null})),
+    on(h("button",{className:"btn-ghost",style:{fontSize:"13px",color:"#6e6e73"}},["PIN ändern"]),"click",()=>{
+      localStorage.removeItem("tg-kid-pin-"+S.activeKindId);
+      S.kindPin="";S.kindPinError=false;S.kindSettingPin=false;S.kindPinOk=false;render();
+    })
   ]));
 
   if(S.kindModal==="ausgabe"){
@@ -525,6 +579,7 @@ const render = () => {
   root.innerHTML="";
   if(S.loading){ root.append(h("div",{className:"loading"},["Lade Daten…"])); return; }
   if(S.mode==="pin"){ root.append(renderPin()); return; }
+  if(S.mode==="kind"&&!S.kindPinOk){ root.append(renderKindPin()); return; }
   if(S.mode==="eltern") root.append(renderEltern());
   else if(S.mode==="kind") root.append(renderKind());
   else root.append(renderRoot());

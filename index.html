@@ -343,7 +343,12 @@ const renderKind = () => {
     ar.append(h("span",{style:{fontSize:"11px",color:"#6e6e73"}},["Meine Ausgaben"]),h("span",{style:{fontWeight:"600",color:"#d4537e"}},[fmt(s.ausgaben)]));
     sec3.append(ar);
     s.txs.filter(t=>t.typ==="ausgabe").forEach(tx=>{
-      sec3.append(h("div",{className:"row"},[h("span",{style:{fontSize:"13px"}},[tx.notiz||"Ausgabe"]),h("span",{style:{fontSize:"13px",fontWeight:"500",color:"#d4537e"}},["−"+fmt(tx.betrag)])]));
+      const txRow=h("div",{className:"row"});
+      txRow.append(h("span",{style:{fontSize:"13px"}},[tx.notiz||"Ausgabe"]),h("span",{style:{fontSize:"13px",fontWeight:"500",color:"#d4537e"}},["−"+fmt(tx.betrag)]));
+      if(S.activeKindId) txRow.append(on(h("button",{className:"btn-ghost",style:{fontSize:"16px",padding:"0 2px",color:"#c7c7cc"}},["×"]),"click",()=>{
+        saveData({...S.data,children:S.data.children.map(ch=>ch.id===c.id?{...ch,transaktionen:ch.transaktionen.filter(t=>t.id!==tx.id)}:ch)});
+      }));
+      sec3.append(txRow);
     });
     sec3.append(on(h("button",{className:"btn",style:{marginTop:"10px",fontSize:"13px"}},["+ Ausgabe eintragen"]),"click",()=>{
       S.selId=c.id; S.kindForm={betrag:"",notiz:"",typ:"ausgabe",datum:""}; S.kindModal="ausgabe"; render();

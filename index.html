@@ -449,6 +449,14 @@ const renderEltern = () => {
     const hdr=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem"}});
     hdr.append(monthNav(true),on(h("button",{className:"btn",style:{width:"auto",padding:"6px 14px",fontSize:"13px",color:"#6e6e73"}},["🔒 Abmelden"]),"click",()=>{S.pin="";S.pinError=false;S.settingPin=false;navigate("/","pin",{activeKindId:null});}));
     wrap.append(hdr,statusBar());
+    // T13 — Empty-State
+    if(!(S.data.children||[]).length){
+      const es=h("div",{style:{textAlign:"center",padding:"48px 24px",color:"#6e6e73"}});
+      es.append(h("div",{style:{fontSize:"48px",marginBottom:"16px"}},["👶"]),h("p",{style:{fontSize:"17px",fontWeight:"600",color:"#1d1d1f",marginBottom:"8px"}},["Noch kein Kind angelegt"]),h("p",{style:{fontSize:"14px",marginBottom:"24px"}},["Füge dein erstes Kind hinzu, um loszulegen."]),on(h("button",{className:"btn",style:{width:"auto",padding:"10px 24px",fontSize:"15px"}},["+ Erstes Kind hinzufügen"]),"click",()=>{S.view="add-child";render();}));
+      wrap.append(es);
+      wrap.append(on(h("button",{className:"btn-ghost",style:{width:"100%",fontSize:"13px",color:"#c7c7cc",marginTop:"8px"}},["🔒 Abmelden"]),"click",()=>{S.pin="";S.pinError=false;S.settingPin=false;navigate("/","pin",{activeKindId:null});}));
+      return wrap;
+    }
     (S.data.children||[]).forEach((c,i)=>{
       const col=COLS[i%COLS.length],s=calcStats(c,S.month);
       const pct=s.vereinbart>0?Math.min(100,((s.elternGesamt+s.carryOver)/s.vereinbart)*100):0;

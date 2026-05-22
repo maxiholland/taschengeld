@@ -106,9 +106,10 @@ let S = {
   kindForm: {betrag:"",notiz:"",typ:"ausgabe",datum:""},
   kindModal: null,
   szForm: {name:"",ziel:""},
-  newChild: {name:"",vereinbartBetrag:"",intervall:"monatlich"},
+  newChild: {name:"",vereinbartBetrag:"",intervall:"monatlich",startMk:todayKey()},
   editMonatl: "",
   editIntervall: "monatlich",
+  editStartMk: "",
   editingChildName: false,
   childNameInput: "",
   activeKindId: null,
@@ -124,19 +125,22 @@ let S = {
 
 // ── Logic ──────────────────────────────────────────────────────────────────
 const getCarryOver = (c, beforeMk) => {
-  // B2 — inaktive Monate als Guthaben/Schulden zählen
-  const ts = parseInt(c.id);
-  if(!ts || isNaN(ts)) {
-    // Fallback für legacy-IDs ohne Timestamp
-    const keys=[...new Set((c.transaktionen||[]).map(t=>t.monatKey))].filter(k=>k<beforeMk).sort();
-    return keys.reduce((debt,mk)=>{
-      const txs=(c.transaktionen||[]).filter(t=>t.monatKey===mk);
-      const el=txs.filter(t=>t.typ==="taschengeld"||t.typ==="auslage").reduce((s,t)=>s+t.betrag,0);
-      return debt+el-vereinbartProMonat(c);
-    },0);
+  // B2 — alle Monate ab startMk (oder Erstellungsdatum als Fallback) iterieren
+  let firstMk = c.startMk || null;
+  if(!firstMk) {
+    const ts = parseInt(c.id);
+    if(!ts || isNaN(ts)) {
+      // legacy-Fallback: nur Monate mit Transaktionen
+      const keys=[...new Set((c.transaktionen||[]).map(t=>t.monatKey))].filter(k=>k<beforeMk).sort();
+      return keys.reduce((debt,mk)=>{
+        const txs=(c.transaktionen||[]).filter(t=>t.monatKey===mk);
+        const el=txs.filter(t=>t.typ==="taschengeld"||t.typ==="auslage").reduce((s,t)=>s+t.betrag,0);
+        return debt+el-vereinbartProMonat(c);
+      },0);
+    }
+    const d = new Date(ts);
+    firstMk = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
   }
-  const d = new Date(ts);
-  const firstMk = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
   if(firstMk >= beforeMk) return 0;
   let mk = firstMk, debt = 0;
   while(mk < beforeMk) {
@@ -518,15 +522,18 @@ const renderEltern = () => {
     const mI=h("input",{type:"text",placeholder:"z. B. 20,00"});
     mI.value=S.newChild.vereinbartBetrag||"";
     on(mI,"input",e=>{S.newChild.vereinbartBetrag=e.target.value;});
-    wrap.append(h("div",{className:"field"},[h("label",{},["Name"]),nI]),ivWrap,h("div",{className:"field",style:{marginBottom:"20px"}},[h("label",{},[mLabel2]),mI]));
+    const sI=h("input",{type:"month"});
+    sI.value=S.newChild.startMk||todayKey();
+    on(sI,"input",e=>{S.newChild.startMk=e.target.value;});
+    wrap.append(h("div",{className:"field"},[h("label",{},["Name"]),nI]),ivWrap,h("div",{className:"field"},[h("label",{},[mLabel2]),mI]),h("div",{className:"field",style:{marginBottom:"20px"}},[h("label",{},["Taschengeld gilt ab"]),sI]));
     const row=h("div",{className:"flex"});
     row.append(
       on(h("button",{className:"btn",style:{color:"#6e6e73"}},["Abbrechen"]),"click",()=>{S.view="home";render();}),
       on(h("button",{className:"btn",style:{fontWeight:"600"}},["Speichern"]),"click",()=>{
         if(!nI.value.trim()) return;
         const vereinbartBetrag=parseFloat((S.newChild.vereinbartBetrag||"0").replace(",","."))||0;
-        const next={...S.data,children:[...S.data.children,{id:Date.now().toString(),name:nI.value.trim(),vereinbartBetrag,intervall:S.newChild.intervall||"monatlich",transaktionen:[],sparziele:[]}]};
-        S.newChild={name:"",vereinbartBetrag:"",intervall:"monatlich"};
+        const next={...S.data,children:[...S.data.children,{id:Date.now().toString(),name:nI.value.trim(),vereinbartBetrag,intervall:S.newChild.intervall||"monatlich",startMk:S.newChild.startMk||todayKey(),transaktionen:[],sparziele:[]}]};
+        S.newChild={name:"",vereinbartBetrag:"",intervall:"monatlich",startMk:todayKey()};
         S.view="home"; saveData(next);
       })
     );
@@ -568,8 +575,11 @@ const renderEltern = () => {
     g1.append(vBox,h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Bargeld"]),h("div",{className:"stat-val"},[fmt(s.ausgezahlt)])]));
     const g2=h("div",{className:"grid2",style:{marginTop:"8px"}});
     g2.append(h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Auslagen"]),h("div",{className:"stat-val"},[fmt(s.auslagen)])]),h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Kind ausgegeben"]),h("div",{className:"stat-val",style:{color:"#d4537e"}},[fmt(s.ausgaben)])]));
-    wrap.append(g1,g2);
-    if(s.carryOver>0) wrap.append(h("div",{className:"carry-box",style:{marginTop:"10px"}},[h("span",{},["Übertrag aus Vormonat"]),h("span",{style:{fontWeight:"600"}},["−"+fmt(s.carryOver)])]));
+    const startLabel=mLabel(c.startMk||todayKey());
+    const startBox=on(h("div",{className:"stat-box",style:{cursor:"pointer",marginBottom:"8px"}},[h("div",{className:"stat-label"},["Gilt ab ✎"]),h("div",{className:"stat-val",style:{fontSize:"13px",fontWeight:"500"}},[startLabel])]),"click",()=>{S.editStartMk=c.startMk||todayKey();S.modal="edit-startmk";render();});
+    wrap.append(g1,g2,startBox);
+    if(s.carryOver>0) wrap.append(h("div",{className:"carry-box",style:{marginTop:"2px"}},[h("span",{},["Übertrag aus Vormonat"]),h("span",{style:{fontWeight:"600"}},["−"+fmt(s.carryOver)])]));
+    if(s.carryOver<0) wrap.append(h("div",{className:"carry-box",style:{marginTop:"2px",background:"#fbeaf0",color:"#4b1528"}},[h("span",{},["Noch ausstehend aus Vormonat"]),h("span",{style:{fontWeight:"600"}},["−"+fmt(-s.carryOver)])]));
 
     const prog=h("div",{className:"card",style:{padding:"12px 14px",marginTop:"10px",marginBottom:"1rem"}});
     const pRow=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:"13px",marginBottom:"8px"}});
@@ -653,6 +663,19 @@ const renderEltern = () => {
         if(isNaN(v)||v<0) return;
         S.modal=null;
         saveData({...S.data,children:S.data.children.map(ch=>ch.id===S.selId?{...ch,vereinbartBetrag:v,intervall:S.editIntervall}:ch)});
+      });
+      wrap.append(m);
+    }
+    if(S.modal==="edit-startmk"){
+      const m=buildModal("Gilt ab (Startmonat)",()=>{S.modal=null;render();});
+      const smI=h("input",{type:"month"});
+      smI.value=S.editStartMk||todayKey();
+      on(smI,"input",e=>{S.editStartMk=e.target.value;});
+      m._box.append(h("div",{className:"field"},[h("label",{},["Ab welchem Monat gilt das Taschengeld?"]),smI]));
+      addModalBtns(m,()=>{S.modal=null;render();},()=>{
+        if(!S.editStartMk) return;
+        S.modal=null;
+        saveData({...S.data,children:S.data.children.map(ch=>ch.id===S.selId?{...ch,startMk:S.editStartMk}:ch)});
       });
       wrap.append(m);
     }

@@ -587,17 +587,19 @@ const renderEltern = () => {
 
     let totVereinbart=0,totBargeld=0,totAuslagen=0,totSaldo=0;
     const currentMk=todayKey();
+    const effectiveStart=c.startMk||(()=>{const ts=parseInt(c.id);if(!ts||isNaN(ts))return null;const d=new Date(ts);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;})();
     MONTHS.forEach((mon,i)=>{
       const mk=`${yr}-${String(i+1).padStart(2,"0")}`;
       if(mk>currentMk) return; // keine Zukunft
       const st=calcStats(c,mk);
-      const saldo=st.elternGesamt-st.vereinbart; // positiv = mehr gezahlt, negativ = noch offen
-      totVereinbart+=st.vereinbart; totBargeld+=st.ausgezahlt; totAuslagen+=st.auslagen; totSaldo+=saldo;
-      const row=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"9px 12px",borderTop:"1px solid #f0f0f5",fontSize:"12px",alignItems:"center"}});
+      const vereinbart=effectiveStart&&mk<effectiveStart?0:st.vereinbart;
+      const saldo=st.elternGesamt-vereinbart;
+      totVereinbart+=vereinbart; totBargeld+=st.ausgezahlt; totAuslagen+=st.auslagen; totSaldo+=saldo;
+      const row=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"9px 12px",borderTop:"1px solid #f0f0f5",fontSize:"12px",alignItems:"center",opacity:effectiveStart&&mk<effectiveStart?"0.45":"1"}});
       const saldoColor=saldo<0?"#c0392b":saldo>0?"#1d9e75":"#6e6e73";
       row.append(
         h("span",{style:{fontWeight:"500"}},[mon]),
-        h("span",{style:{color:"#6e6e73"}},[fmt(st.vereinbart)]),
+        h("span",{style:{color:"#6e6e73"}},[vereinbart>0?fmt(vereinbart):"–"]),
         h("span",{},[fmt(st.ausgezahlt)]),
         h("span",{},[fmt(st.auslagen)]),
         h("span",{style:{fontWeight:"600",color:saldoColor}},[(saldo>=0?"+":"")+fmt(saldo)])

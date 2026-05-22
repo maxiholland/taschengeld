@@ -110,6 +110,7 @@ let S = {
   editMonatl: "",
   editIntervall: "monatlich",
   editStartMk: "",
+  lastDeleted: null,
   editingChildName: false,
   childNameInput: "",
   activeKindId: null,
@@ -199,6 +200,30 @@ const h = (tag,attrs={},children=[]) => {
   return el;
 };
 const on = (el,ev,fn) => { el.addEventListener(ev,fn); return el; };
+
+// T9 — Undo-Toast
+const softDelete = (tx, childId) => {
+  if(S.lastDeleted) clearTimeout(S.lastDeleted.timeout);
+  const timeout = setTimeout(()=>{ S.lastDeleted=null; render(); }, 5000);
+  S.lastDeleted = { tx, childId, timeout };
+  saveData({...S.data, children: S.data.children.map(ch=>
+    ch.id===childId ? {...ch, transaktionen:(ch.transaktionen||[]).filter(t=>t.id!==tx.id)} : ch
+  )});
+};
+const undoDelete = () => {
+  if(!S.lastDeleted) return;
+  clearTimeout(S.lastDeleted.timeout);
+  const {tx, childId} = S.lastDeleted;
+  S.lastDeleted = null;
+  saveData({...S.data, children: S.data.children.map(ch=>
+    ch.id===childId ? {...ch, transaktionen:[tx,...(ch.transaktionen||[])]} : ch
+  )});
+};
+const renderUndoToast = () => {
+  const toast=h("div",{style:{position:"fixed",bottom:"24px",left:"50%",transform:"translateX(-50%)",background:"#1d1d1f",color:"#fff",borderRadius:"14px",padding:"13px 18px",display:"flex",alignItems:"center",gap:"14px",fontSize:"14px",zIndex:"300",boxShadow:"0 4px 24px rgba(0,0,0,0.25)",whiteSpace:"nowrap"}});
+  toast.append(h("span",{},["Transaktion gelöscht"]),on(h("button",{style:{background:"none",border:"none",color:"#4dabf7",fontWeight:"700",fontSize:"14px",cursor:"pointer",padding:"0"}},["Rückgängig"]),"click",undoDelete));
+  return toast;
+};
 
 const monthNav = (large=false) => {
   const wrap=h("div",{className:"month-nav"});
@@ -373,9 +398,7 @@ const renderKind = () => {
     s.txs.filter(t=>t.typ==="ausgabe").forEach(tx=>{
       const txRow=h("div",{className:"row"});
       txRow.append(h("span",{style:{fontSize:"13px"}},[tx.notiz||"Ausgabe"]),h("span",{style:{fontSize:"13px",fontWeight:"500",color:"#d4537e"}},["−"+fmt(tx.betrag)]));
-      if(S.activeKindId) txRow.append(on(h("button",{className:"btn-ghost",style:{fontSize:"16px",padding:"0 2px",color:"#c7c7cc"}},["×"]),"click",()=>{
-        saveData({...S.data,children:S.data.children.map(ch=>ch.id===c.id?{...ch,transaktionen:ch.transaktionen.filter(t=>t.id!==tx.id)}:ch)});
-      }));
+      if(S.activeKindId) txRow.append(on(h("button",{className:"btn-ghost",style:{fontSize:"16px",padding:"0 2px",color:"#c7c7cc"}},["×"]),"click",()=>softDelete(tx,c.id)));
       sec3.append(txRow);
     });
     sec3.append(on(h("button",{className:"btn",style:{marginTop:"10px",fontSize:"13px"}},["+ Ausgabe eintragen"]),"click",()=>{
@@ -607,9 +630,7 @@ const renderEltern = () => {
       const inf=h("div",{style:{flex:"1",minWidth:"0"}});
       inf.append(h("p",{style:{fontSize:"13px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},[tx.notiz||"–"]),h("p",{style:{fontSize:"11px",color:"#6e6e73"}},[fmtD(tx.datum)]));
       row.append(h("span",{className:"tag",style:{background:BGS[tx.typ]||"#eee",color:TC[tx.typ]||"#333"}},[LABELS[tx.typ]||tx.typ]),inf,h("span",{style:{fontSize:"13px",fontWeight:"600",flexShrink:"0"}},[fmt(tx.betrag)]));
-      if(tx.typ!=="ausgabe") row.append(on(h("button",{className:"btn-ghost",style:{fontSize:"16px",padding:"0 2px"}},["×"]),"click",()=>{
-        saveData({...S.data,children:S.data.children.map(ch=>ch.id===S.selId?{...ch,transaktionen:ch.transaktionen.filter(t=>t.id!==tx.id)}:ch)});
-      }));
+      if(tx.typ!=="ausgabe") row.append(on(h("button",{className:"btn-ghost",style:{fontSize:"16px",padding:"0 2px"}},["×"]),"click",()=>softDelete(tx,S.selId)));
       txList.append(row);
     });
     wrap.append(txList);
@@ -692,6 +713,7 @@ const render = () => {
   if(S.mode==="kind"&&!S.kindPinOk){ root.append(renderKindPin()); return; }
   if(S.mode==="eltern") root.append(renderEltern());
   else if(S.mode==="kind") root.append(renderKind());
+  if(S.lastDeleted) document.body.append(renderUndoToast());
 };
 
 // ── Init ───────────────────────────────────────────────────────────────────

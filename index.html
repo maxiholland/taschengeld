@@ -112,6 +112,7 @@ let S = {
   editIntervall: "monatlich",
   editStartMk: "",
   lastDeleted: null,
+  showCarryExplainer: false,
   editingChildName: false,
   childNameInput: "",
   activeKindId: null,
@@ -582,10 +583,10 @@ const renderEltern = () => {
     // Tabelle
     const tbl=h("div",{style:{background:"#fff",borderRadius:"14px",border:"1px solid #e5e5ea",overflow:"hidden",marginBottom:"1rem"}});
     const thRow=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"8px 12px",background:"#f5f5f7",fontSize:"10px",color:"#6e6e73",fontWeight:"600",textTransform:"uppercase",letterSpacing:"0.3px"}});
-    ["Monat","Vereinb.","Bargeld","Auslagen","Saldo"].forEach(t=>thRow.append(h("span",{},[t])));
+    ["Monat","Vereinb.","Bargeld","Auslagen","Stand"].forEach(t=>thRow.append(h("span",{},[t])));
     tbl.append(thRow);
 
-    let totVereinbart=0,totBargeld=0,totAuslagen=0,totSaldo=0;
+    let totVereinbart=0,totBargeld=0,totAuslagen=0,runningBalance=0;
     const currentMk=todayKey();
     const effectiveStart=c.startMk||(()=>{const ts=parseInt(c.id);if(!ts||isNaN(ts))return null;const d=new Date(ts);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;})();
     MONTHS.forEach((mon,i)=>{
@@ -593,29 +594,30 @@ const renderEltern = () => {
       if(mk>currentMk) return; // keine Zukunft
       const st=calcStats(c,mk);
       const vereinbart=effectiveStart&&mk<effectiveStart?0:st.vereinbart;
-      const saldo=st.elternGesamt-vereinbart;
-      totVereinbart+=vereinbart; totBargeld+=st.ausgezahlt; totAuslagen+=st.auslagen; totSaldo+=saldo;
-      const row=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"9px 12px",borderTop:"1px solid #f0f0f5",fontSize:"12px",alignItems:"center",opacity:effectiveStart&&mk<effectiveStart?"0.45":"1"}});
-      const saldoColor=saldo<0?"#c0392b":saldo>0?"#1d9e75":"#6e6e73";
+      runningBalance+=st.elternGesamt-vereinbart;
+      totVereinbart+=vereinbart; totBargeld+=st.ausgezahlt; totAuslagen+=st.auslagen;
+      const beforeStart=effectiveStart&&mk<effectiveStart;
+      const row=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"9px 12px",borderTop:"1px solid #f0f0f5",fontSize:"12px",alignItems:"center",opacity:beforeStart?"0.45":"1"}});
+      const standColor=beforeStart?"#aaa":runningBalance<0?"#c0392b":runningBalance>0?"#1d9e75":"#6e6e73";
       row.append(
         h("span",{style:{fontWeight:"500"}},[mon]),
         h("span",{style:{color:"#6e6e73"}},[vereinbart>0?fmt(vereinbart):"–"]),
         h("span",{},[fmt(st.ausgezahlt)]),
         h("span",{},[fmt(st.auslagen)]),
-        h("span",{style:{fontWeight:"600",color:saldoColor}},[(saldo>=0?"+":"")+fmt(saldo)])
+        h("span",{style:{fontWeight:"600",color:standColor}},[beforeStart?"–":(runningBalance>=0?"+":"")+fmt(runningBalance)])
       );
       tbl.append(row);
     });
 
     // Gesamtzeile
     const totRow=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"10px 12px",borderTop:"2px solid #e5e5ea",fontSize:"12px",fontWeight:"700",background:"#f5f5f7"}});
-    const totColor=totSaldo<0?"#c0392b":totSaldo>0?"#1d9e75":"#6e6e73";
+    const totColor=runningBalance<0?"#c0392b":runningBalance>0?"#1d9e75":"#6e6e73";
     totRow.append(
       h("span",{},["Gesamt"]),
       h("span",{style:{color:"#6e6e73"}},[fmt(totVereinbart)]),
       h("span",{},[fmt(totBargeld)]),
       h("span",{},[fmt(totAuslagen)]),
-      h("span",{style:{color:totColor}},[(totSaldo>=0?"+":"")+fmt(totSaldo)])
+      h("span",{style:{color:totColor}},[(runningBalance>=0?"+":"")+fmt(runningBalance)])
     );
     tbl.append(totRow);
     wrap.append(tbl);
@@ -654,15 +656,40 @@ const renderEltern = () => {
     const g1=h("div",{className:"grid2"});
     const rawBetrag=c.vereinbartBetrag!==undefined?c.vereinbartBetrag:(c.monatlBetrag||0);
     const ivLabelStat=c.intervall==="wöchentlich"?" /Wo":" /Mo";
-    const vBox=on(h("div",{className:"stat-box",style:{cursor:"pointer"}},[h("div",{className:"stat-label"},["Vereinbart ✎"]),h("div",{className:"stat-val"},[fmt(s.vereinbart)]),h("div",{style:{fontSize:"10px",color:"#aaa",marginTop:"2px"}},[c.intervall==="wöchentlich"?"(4×"+fmt(rawBetrag)+")":" "])]),"click",()=>{S.editMonatl=String(rawBetrag||"");S.editIntervall=c.intervall||"monatlich";S.modal="edit-monatl";render();});
+    // T3 — Zeiteinheit immer sichtbar
+    const vBox=on(h("div",{className:"stat-box",style:{cursor:"pointer"}},[h("div",{className:"stat-label"},["Vereinbart ✎"]),h("div",{className:"stat-val"},[fmt(rawBetrag)]),h("div",{style:{fontSize:"11px",color:"#6e6e73",marginTop:"2px"}},[c.intervall==="wöchentlich"?"pro Woche":"pro Monat"])]),"click",()=>{S.editMonatl=String(rawBetrag||"");S.editIntervall=c.intervall||"monatlich";S.modal="edit-monatl";render();});
     g1.append(vBox,h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Bargeld"]),h("div",{className:"stat-val"},[fmt(s.ausgezahlt)])]));
     const g2=h("div",{className:"grid2",style:{marginTop:"8px"}});
-    g2.append(h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Auslagen"]),h("div",{className:"stat-val"},[fmt(s.auslagen)])]),h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Kind ausgegeben"]),h("div",{className:"stat-val",style:{color:"#d4537e"}},[fmt(s.ausgaben)])]));
+    // T4 — Farb-Logik: Rot nur bei Überzug, 0 € → Grau
+    const ausgebenColor=s.ausgaben===0?"#aaa":s.ausgaben>s.vereinbart?"#d4537e":"#1d1d1f";
+    g2.append(h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Auslagen"]),h("div",{className:"stat-val"},[fmt(s.auslagen)])]),h("div",{className:"stat-box"},[h("div",{className:"stat-label"},["Kind ausgegeben"]),h("div",{className:"stat-val",style:{color:ausgebenColor}},[fmt(s.ausgaben)])]));
     const startLabel=mLabel(c.startMk||todayKey());
     const startBox=on(h("div",{className:"stat-box",style:{cursor:"pointer",marginBottom:"8px"}},[h("div",{className:"stat-label"},["Gilt ab ✎"]),h("div",{className:"stat-val",style:{fontSize:"13px",fontWeight:"500"}},[startLabel])]),"click",()=>{S.editStartMk=c.startMk||todayKey();S.modal="edit-startmk";render();});
     wrap.append(g1,g2,startBox);
-    if(s.carryOver>0) wrap.append(h("div",{className:"carry-box",style:{marginTop:"2px"}},[h("span",{},["Übertrag aus Vormonat"]),h("span",{style:{fontWeight:"600"}},["−"+fmt(s.carryOver)])]));
-    if(s.carryOver<0) wrap.append(h("div",{className:"carry-box",style:{marginTop:"2px",background:"#fbeaf0",color:"#4b1528"}},[h("span",{},["Noch ausstehend aus Vormonat"]),h("span",{style:{fontWeight:"600"}},["−"+fmt(-s.carryOver)])]));
+    // T7 — Übertrag mit klickbarem ⓘ-Explainer
+    if(s.carryOver!==0){
+      const carryAmt=Math.abs(s.carryOver);
+      const isOver=s.carryOver>0;
+      const prevMkLabel=mLabel(stepM(S.month,-1));
+      const cbStyle=isOver?{}:{background:"#fbeaf0",color:"#4b1528"};
+      const carryBox=h("div",{className:"carry-box",style:{marginTop:"2px",...cbStyle}});
+      const carryHdr=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",userSelect:"none"}});
+      const carryLbl=isOver?"Übertrag aus Vormonat":"Noch ausstehend aus Vormonat";
+      const infoIcon=h("span",{title:"Klicken für Erklärung",style:{fontSize:"12px",opacity:"0.55",marginLeft:"4px"}},["ⓘ"]);
+      carryHdr.append(
+        h("span",{},[carryLbl,infoIcon]),
+        h("span",{style:{fontWeight:"600"}},["−"+fmt(carryAmt)])
+      );
+      on(carryHdr,"click",()=>{S.showCarryExplainer=!S.showCarryExplainer;render();});
+      carryBox.append(carryHdr);
+      if(S.showCarryExplainer){
+        const expl=isOver
+          ?`${c.name} hat in den Vormonaten ${fmt(carryAmt)} mehr bekommen als vereinbart. Dieser Betrag wird vom aktuellen Monat abgezogen.`
+          :`${c.name} hat in den Vormonaten ${fmt(carryAmt)} weniger bekommen als vereinbart. Dieser Betrag wird zum aktuellen Monat dazugezählt.`;
+        carryBox.append(h("div",{style:{marginTop:"7px",paddingTop:"7px",borderTop:"1px solid rgba(0,0,0,0.08)",fontSize:"11px",lineHeight:"1.6"}},[expl]));
+      }
+      wrap.append(carryBox);
+    }
 
     const prog=h("div",{className:"card",style:{padding:"12px 14px",marginTop:"10px",marginBottom:"1rem"}});
     const pRow=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:"13px",marginBottom:"8px"}});
@@ -698,8 +725,17 @@ const renderEltern = () => {
 
     // QR-Code
     const kindUrl=window.location.origin+window.location.pathname+"?kind="+c.id;
+    // T9 — QR-Code mit Erklärung
     const qrSec=h("div",{className:"card",style:{padding:"16px 18px",marginTop:"16px",marginBottom:"8px"}});
-    qrSec.append(h("p",{style:{fontSize:"13px",color:"#6e6e73",fontWeight:"600",marginBottom:"12px"}},["Kind-Link teilen"]));
+    qrSec.append(h("p",{style:{fontSize:"14px",fontWeight:"600",marginBottom:"6px"}},["Kind-App-Zugang für "+c.name]));
+    const qrExpl=h("div",{style:{fontSize:"12px",color:"#6e6e73",marginBottom:"14px",lineHeight:"1.6"}});
+    qrExpl.append(
+      h("p",{style:{marginBottom:"4px"}},["QR-Code scannen, damit "+c.name+" die App öffnen kann:"]),
+      h("p",{},["✓ Guthaben & Transaktionen sehen"]),
+      h("p",{},["✓ Eigene Ausgaben eintragen"]),
+      h("p",{style:{color:"#aaa"}},["✗ Beträge oder Einstellungen ändern"])
+    );
+    qrSec.append(qrExpl);
     const qrDiv=h("div",{style:{display:"flex",justifyContent:"center",marginBottom:"12px"}});
     qrSec.append(qrDiv);
     const urlRow=h("div",{style:{display:"flex",gap:"8px",alignItems:"center"}});

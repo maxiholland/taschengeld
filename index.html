@@ -220,7 +220,7 @@ const undoDelete = () => {
   )});
 };
 const renderUndoToast = () => {
-  const toast=h("div",{style:{position:"fixed",bottom:"24px",left:"50%",transform:"translateX(-50%)",background:"#1d1d1f",color:"#fff",borderRadius:"14px",padding:"13px 18px",display:"flex",alignItems:"center",gap:"14px",fontSize:"14px",zIndex:"300",boxShadow:"0 4px 24px rgba(0,0,0,0.25)",whiteSpace:"nowrap"}});
+  const toast=h("div",{id:"undo-toast",style:{position:"fixed",bottom:"24px",left:"50%",transform:"translateX(-50%)",background:"#1d1d1f",color:"#fff",borderRadius:"14px",padding:"13px 18px",display:"flex",alignItems:"center",gap:"14px",fontSize:"14px",zIndex:"300",boxShadow:"0 4px 24px rgba(0,0,0,0.25)",whiteSpace:"nowrap"}});
   toast.append(h("span",{},["Transaktion gelöscht"]),on(h("button",{style:{background:"none",border:"none",color:"#4dabf7",fontWeight:"700",fontSize:"14px",cursor:"pointer",padding:"0"}},["Rückgängig"]),"click",undoDelete));
   return toast;
 };
@@ -708,6 +708,7 @@ const renderEltern = () => {
 const render = () => {
   const root=document.getElementById("root");
   root.innerHTML="";
+  document.getElementById("undo-toast")?.remove();
   if(S.loading){ root.append(h("div",{className:"loading"},["Lade Daten…"])); return; }
   if(S.mode==="pin"){ root.append(renderPin()); return; }
   if(S.mode==="kind"&&!S.kindPinOk){ root.append(renderKindPin()); return; }

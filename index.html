@@ -46,6 +46,10 @@
   .flex{display:flex;gap:8px}
   .flex .btn{flex:1}
   .field{margin-bottom:14px}
+  /* T5 — Button-Hierarchie */
+  .btn-primary{background:#007aff;color:#fff;border-color:#007aff}
+  .btn-primary:active{opacity:0.8}
+  .btn-secondary{background:transparent;border-color:#007aff;color:#007aff}
 </style>
 </head>
 <body>
@@ -113,6 +117,7 @@ let S = {
   editStartMk: "",
   lastDeleted: null,
   showCarryExplainer: false,
+  expandedCards: {},
   editingChildName: false,
   childNameInput: "",
   activeKindId: null,
@@ -508,24 +513,66 @@ const renderEltern = () => {
       wrap.append(on(h("button",{className:"btn-ghost",style:{width:"100%",fontSize:"13px",color:"#c7c7cc",marginTop:"8px"}},["🔒 Abmelden"]),"click",()=>{S.pin="";S.pinError=false;S.settingPin=false;navigate("/","pin",{activeKindId:null});}));
       return wrap;
     }
+    // T1+T2 — Card-Overload reduziert + klare Saldo-Labels
     (S.data.children||[]).forEach((c,i)=>{
       const col=COLS[i%COLS.length],s=calcStats(c,S.month);
-      const pct=s.vereinbart>0?Math.min(100,((s.elternGesamt+s.carryOver)/s.vereinbart)*100):0;
-      const card=on(h("div",{className:"card",style:{cursor:"pointer"}}),"click",()=>{S.selId=c.id;S.view="child";render();});
-      const info=h("div",{style:{flex:"1"}});
+      const pct=s.vereinbart>0?Math.min(100,(s.elternGesamt/s.vereinbart)*100):0;
       const rawB=c.vereinbartBetrag!==undefined?c.vereinbartBetrag:(c.monatlBetrag||0);
-      const ivLabel=c.intervall==="wöchentlich"?"/Woche":"/Monat";
-      info.append(h("p",{style:{fontWeight:"600",fontSize:"15px"}},[c.name]),h("p",{style:{fontSize:"12px",color:"#6e6e73"}},[fmt(rawB)+ivLabel+" · ausgegeben "+fmt(s.ausgaben)]));
-      const right=h("div",{style:{textAlign:"right"}});
-      right.append(h("p",{style:{fontSize:"11px",color:"#6e6e73"}},["noch offen"]),h("p",{style:{fontSize:"17px",fontWeight:"600",color:s.netOffen<0?"#833b0a":s.offen>0?col.text:"#aaa"}},[s.netOffen<0?`−${fmt(-s.netOffen)}`:fmt(s.offen)]));
-      card.append(h("div",{className:"card-header"},[h("div",{className:"avatar",style:{background:col.bg,color:col.text}},[inits(c.name)]),info,right]));
-      const bw=h("div",{style:{padding:"0 18px 6px"}});
-      bw.append(h("div",{className:"bar-wrap"},[h("div",{className:"bar",style:{width:pct+"%",background:s.netOffen<0?"#ef9f27":col.bar}})]));
-      card.append(bw);
-      const foot=h("div",{style:{display:"flex",justifyContent:"space-between",padding:"4px 18px 12px",fontSize:"11px",color:"#6e6e73"}});
-      foot.append(h("span",{},["Bargeld "+fmt(s.ausgezahlt)]),h("span",{},["Auslagen "+fmt(s.auslagen)]));
-      if(s.carryOver>0) foot.append(h("span",{style:{color:"#833b0a"}},["Übertrag −"+fmt(s.carryOver)]));
-      card.append(foot);
+      const ivLabel=c.intervall==="wöchentlich"?" / Woche":" / Monat";
+      const isExpanded=!!(S.expandedCards[c.id]);
+
+      const card=h("div",{className:"card"});
+
+      // ── Header: Avatar + Name + Betrag – klickbar zur Detailansicht
+      const hdrRow=on(h("div",{className:"card-header",style:{cursor:"pointer"}}),"click",()=>{S.selId=c.id;S.view="child";render();});
+      const info=h("div",{style:{flex:"1"}});
+      info.append(
+        h("p",{style:{fontWeight:"600",fontSize:"15px"}},[c.name]),
+        h("p",{style:{fontSize:"12px",color:"#6e6e73"}},[fmt(rawB)+ivLabel])
+      );
+      hdrRow.append(h("div",{className:"avatar",style:{background:col.bg,color:col.text}},[inits(c.name)]),info);
+      card.append(hdrRow);
+
+      // ── Primär-Info: ein einziger prominenter Wert (T1 + T2)
+      const mainSec=h("div",{style:{padding:"6px 18px 4px"}});
+      let mainLabel,mainValue,mainColor;
+      if(s.netOffen>0){
+        mainLabel="Noch auszuzahlen"; mainValue=fmt(s.offen); mainColor=col.text;
+      } else if(s.netOffen===0){
+        mainLabel="Alles ausgezahlt ✓"; mainValue=""; mainColor="#aaa";
+      } else {
+        mainLabel="Überzahlt (nächsten Monat weniger)"; mainValue=fmt(-s.netOffen); mainColor="#c0392b";
+      }
+      const mainRow=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline"}});
+      mainRow.append(
+        h("span",{style:{fontSize:"13px",color:mainColor,fontWeight:"500"}},[mainLabel]),
+        mainValue?h("span",{style:{fontSize:"20px",fontWeight:"700",color:mainColor}},[mainValue]):h("span",{})
+      );
+      mainSec.append(mainRow);
+
+      // ── Details-Toggle
+      const toggleRow=on(h("div",{style:{fontSize:"12px",color:"#6e6e73",paddingTop:"8px",paddingBottom:"10px",cursor:"pointer",userSelect:"none"}},
+        [isExpanded?"▲ Details ausblenden":"▼ Details anzeigen"]),"click",e=>{
+        e.stopPropagation();
+        S.expandedCards={...S.expandedCards,[c.id]:!isExpanded};
+        render();
+      });
+      mainSec.append(toggleRow);
+      card.append(mainSec);
+
+      // ── Detail-Bereich (ausgeklappt)
+      if(isExpanded){
+        const detSec=h("div",{style:{padding:"8px 18px 12px",borderTop:"1px solid #f0f0f5",fontSize:"12px",color:"#6e6e73"}});
+        const detRow=(lbl,val,vc)=>{const r=h("div",{style:{display:"flex",justifyContent:"space-between",padding:"4px 0"}});r.append(h("span",{},[lbl]),h("span",{style:{fontWeight:"500",color:vc||"#1d1d1f"}},[val]));return r;};
+        detSec.append(detRow("Bargeld ausgezahlt",fmt(s.ausgezahlt)));
+        detSec.append(detRow("Auslagen verbucht",fmt(s.auslagen)));
+        if(s.carryOver>0) detSec.append(detRow("Übertrag (zu viel bekommen)","−"+fmt(s.carryOver),"#833b0a"));
+        if(s.carryOver<0) detSec.append(detRow("Übertrag (zu wenig bekommen)","+"+fmt(-s.carryOver),"#1d9e75"));
+        detSec.append(h("div",{className:"bar-wrap",style:{marginTop:"8px"}},[h("div",{className:"bar",style:{width:pct+"%",background:s.netOffen<0?"#ef9f27":col.bar}})]));
+        detSec.append(h("div",{style:{fontSize:"11px",color:"#aaa",marginTop:"3px"}},["Ausgezahlt: "+fmt(s.elternGesamt)+" von "+fmt(s.vereinbart)]));
+        card.append(detSec);
+      }
+
       wrap.append(card);
     });
     wrap.append(on(h("button",{className:"btn"},["+ Kind hinzufügen"]),"click",()=>{S.view="add-child";render();}));
@@ -583,7 +630,8 @@ const renderEltern = () => {
     // Tabelle
     const tbl=h("div",{style:{background:"#fff",borderRadius:"14px",border:"1px solid #e5e5ea",overflow:"hidden",marginBottom:"1rem"}});
     const thRow=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"8px 12px",background:"#f5f5f7",fontSize:"10px",color:"#6e6e73",fontWeight:"600",textTransform:"uppercase",letterSpacing:"0.3px"}});
-    ["Monat","Vereinb.","Bargeld","Auslagen","Stand"].forEach(t=>thRow.append(h("span",{},[t])));
+    // T2 — Saldo-Spalte mit Bedeutungshinweis
+    ["Monat","Vereinb.","Bargeld","Auslagen","Saldo"].forEach(t=>thRow.append(h("span",{},[t])));
     tbl.append(thRow);
 
     let totVereinbart=0,totBargeld=0,totAuslagen=0,runningBalance=0;
@@ -621,6 +669,8 @@ const renderEltern = () => {
     );
     tbl.append(totRow);
     wrap.append(tbl);
+    // T2 — Legende: Saldo-Bedeutung erklären
+    wrap.append(h("p",{style:{fontSize:"11px",color:"#6e6e73",marginBottom:"1rem",textAlign:"center"}},["Saldo: + Kind hat Guthaben (bekommt noch Geld) · − Kind hat Schulden"]));
 
     wrap.append(on(h("button",{className:"btn-ghost",style:{width:"100%",fontSize:"13px",color:"#6e6e73"}},["🖨 Drucken"]),"click",()=>window.print()));
   }
@@ -699,10 +749,11 @@ const renderEltern = () => {
     prog.append(pRow,h("div",{className:"bar-wrap"},[h("div",{className:"bar",style:{width:pct+"%",background:s.netOffen<0?"#ef9f27":col.bar}})]));
     wrap.append(prog);
 
+    // T5 — Button-Hierarchie: Primary vs Secondary
     const btnRow=h("div",{className:"grid2",style:{marginBottom:"8px"}});
     btnRow.append(
-      on(h("button",{className:"btn"},["Bargeld ausgezahlt"]),"click",()=>{S.form={betrag:"",notiz:"",typ:"taschengeld",datum:""};S.modal="buchen";render();}),
-      on(h("button",{className:"btn"},["Auslage verbuchen"]),"click",()=>{S.form={betrag:"",notiz:"",typ:"auslage",datum:""};S.modal="buchen";render();})
+      on(h("button",{className:"btn btn-primary"},["Bargeld ausgezahlt"]),"click",()=>{S.form={betrag:"",notiz:"",typ:"taschengeld",datum:""};S.modal="buchen";render();}),
+      on(h("button",{className:"btn btn-secondary"},["Auslage verbuchen"]),"click",()=>{S.form={betrag:"",notiz:"",typ:"auslage",datum:""};S.modal="buchen";render();})
     );
     wrap.append(btnRow);
     wrap.append(on(h("button",{className:"btn",style:{marginBottom:"1.5rem",fontSize:"13px",color:"#6e6e73"}},["📅 Jahresübersicht"]),"click",()=>{S.yearViewYear=new Date().getFullYear();S.view="year";render();}));

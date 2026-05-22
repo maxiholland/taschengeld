@@ -31,6 +31,32 @@ Dieses Dokument ist dein **Gedächtnis** zwischen Sessions. Führe es konsequent
 
 ## Session-Log
 
+### 2026-05-22 — Phase 2 implementiert ✅
+
+**TASK-05** (Button-Hierarchie) — ✅ erledigt
+- CSS: `.btn-primary` (blau gefüllt #007aff) und `.btn-secondary` (outline, blau) in `<style>` ergänzt
+- "Bargeld ausgezahlt" → `className:"btn btn-primary"`, "Auslage verbuchen" → `className:"btn btn-secondary"`
+
+**TASK-02** (Negativ-Saldi) — ✅ erledigt
+- Home-Card: neue Logik `mainLabel`: "Noch auszuzahlen" / "Alles ausgezahlt ✓" / "Überzahlt (nächsten Monat weniger)"
+- Kein nacktes Minuszeichen mehr im Haupt-Wert der Home-Card
+- Jahresübersicht: Header "Stand" → "Saldo"; Legende unter Tabelle: "Grün = Guthaben · Rot = Schulden"
+
+**TASK-01** (Kognitiver Overload) — ✅ erledigt
+- `expandedCards: {}` zum State hinzugefügt
+- Gesamte Home-Card-Schleife neu aufgebaut:
+  - Header (klickbar → Detailansicht): Avatar, Name, Betrag/Monat
+  - Primär-Info (immer sichtbar): ein prominenter Wert in Farbe
+  - Toggle "▼ Details anzeigen / ▲ Details ausblenden" (stopPropagation → öffnet nicht Detailansicht)
+  - Details-Bereich: Bargeld, Auslagen, Übertrag (mit klarer Richtungs-Beschriftung), Progress Bar
+- Progress Bar bleibt – aber nur im Detail-Bereich, nicht mehr auf der Hauptcard
+
+**JS-Syntax-Check:** `node --check` → kein Fehler
+
+**Nächster Schritt:** Phase 3 — TASK-06 (Progress Bar im child-view), TASK-10 (Mobile Jahresübersicht)
+
+---
+
 ### 2026-05-22 — Phase 1 implementiert ✅
 
 **TASK-08** (Löschen ohne Confirmation) — **Bereits implementiert, kein Code-Change**

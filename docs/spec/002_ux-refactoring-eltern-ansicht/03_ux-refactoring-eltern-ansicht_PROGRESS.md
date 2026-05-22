@@ -31,6 +31,28 @@ Dieses Dokument ist dein **Gedächtnis** zwischen Sessions. Führe es konsequent
 
 ## Session-Log
 
+### 2026-05-22 — Phase 3 implementiert ✅ — SPEC 002 VOLLSTÄNDIG ABGESCHLOSSEN
+
+**TASK-06** (Progress Bar child-view) — ✅ erledigt
+- `pct`-Berechnung korrigiert: `elternGesamt / vereinbart` statt `(elternGesamt + carryOver) / vereinbart`
+- carryOver hat die Bar verzerrt (Ellen: fast voll obwohl fast ausgeglichen) — jetzt zeigt Bar nur den echten Ausgabestatus dieses Monats
+- Labels: "Ausgezahlt: X von Y €" + "Noch: Z" / "✓ Fertig" / "Überzahlt: Z" statt "Verrechnet" / "Schulden → Folgemonat"
+
+**TASK-10** (Mobile Jahresübersicht) — ✅ erledigt
+- CSS: `.year-table` (Desktop-only) + `.year-cards` (Mobile-only) + `@media(max-width:600px)`
+- JS: Tabellen-Loop baut jetzt parallel auch Mobile-Cards
+- Mobile-Card je Monat: Monatsname, Vereinbart, Ausgezahlt, Auslagen, Saldo als Klartext "Kind bekommt noch: X" / "Kind schuldet: X" / "Ausgeglichen ✓"
+- Gesamtzeile bleibt in der Desktop-Tabelle; Mobile zeigt individuelle Monatskarten
+
+**JS-Syntax-Check:** `node --check` → kein Fehler
+
+**SPEC 002 Status:** Alle 10 UX-Tasks (TASK-01 bis TASK-10) abgeschlossen.
+- Phase 1 ✅ (TASK-03, 04, 07, 08, 09)
+- Phase 2 ✅ (TASK-01, 02, 05)
+- Phase 3 ✅ (TASK-06, 10)
+
+---
+
 ### 2026-05-22 — Phase 2 implementiert ✅
 
 **TASK-05** (Button-Hierarchie) — ✅ erledigt

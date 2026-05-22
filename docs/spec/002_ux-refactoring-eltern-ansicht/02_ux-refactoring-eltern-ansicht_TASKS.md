@@ -39,7 +39,7 @@ In der Kind-Detailansicht fehlt die Zeiteinheit bei „Vereinbart". Auf allen Sc
 - Alternativ: Label umbenennen zu „Monatliches Taschengeld: 15,00 €"
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - Öffne App → Monatsübersicht → Kind-Detailansicht → Jahresübersicht
 - Prüfe: Überall ist die Zeiteinheit sichtbar
 - Browser-Test T-03 bestanden
@@ -61,7 +61,7 @@ In der Kind-Detailansicht fehlt die Zeiteinheit bei „Vereinbart". Auf allen Sc
 - Teste den Fall `ausgegeben = 0`
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - DevTools: `getComputedStyle(element).color` für „0,00 €"-Anzeige → nicht Rot
 - Browser-Test T-04 bestanden
 
@@ -79,7 +79,7 @@ In der Kind-Detailansicht fehlt die Zeiteinheit bei „Vereinbart". Auf allen Sc
 **Entscheidungs-Option:** Tooltip (einfacher) oder Expander (besser lesbar auf Mobile). Entscheide und dokumentiere in `04_ux-refactoring-eltern-ansicht_DECISIONS.md`.
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - Kind mit negativem Übertrag aufrufen → Erklärung erscheint beim Klick/Hover auf ⓘ
 - Browser-Test T-08 bestanden
 
@@ -109,7 +109,7 @@ Wähle die technisch einfachere Option und dokumentiere in `04_ux-refactoring-el
 ```
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - Trash-Icon klicken → kein sofortiges Löschen → Dialog/Toast erscheint
 - [Abbrechen] → Transaktion bleibt vorhanden
 - [Löschen] → Transaktion verschwindet
@@ -127,7 +127,7 @@ Vor dem QR-Code steht aktuell nur „Kind-Link teilen" ohne Erklärung. Ergänze
 - Optional: Link „> Was kann [Kind-Name] damit machen?" (Toggle-Text)
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - Kind-Detailansicht → QR-Code-Bereich → Erklärungstext ohne Klick sichtbar
 - Browser-Test T-09 bestanden
 
@@ -153,7 +153,7 @@ Alle negativen Beträge in der App müssen explizit beschriftet sein. Kein blank
 5. Farb-Coding konsistent: Grün (bekommt Geld), Rot (schuldet), Grau (ausgeglichen)
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - Suche in gerenderten DOM-Elementen nach `-[0-9]` — sollte kein bloßes Minuszeichen mehr geben
 - Browser-Test T-02 bestanden
 
@@ -184,7 +184,7 @@ Die Kind-Card zeigt 7 Datenfelder gleichzeitig. Ziel: maximal 3 sichtbar, Rest i
 **Hinweis:** Das ist der größte Umbau. Vor dem Start den Maxi kurz bestätigen lassen, dass Phase 1 erfolgreich war.
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - Kind-Card zählen: ≤3 Datenfelder ohne Expander
 - Expander klicken → Details erscheinen
 - Expander schließen → Details verschwinden
@@ -215,7 +215,7 @@ Die Kind-Card zeigt 7 Datenfelder gleichzeitig. Ziel: maximal 3 sichtbar, Rest i
 ```
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - Kind-Detailansicht → 2 Buttons visuell different
 - Browser-Test T-05 bestanden
 
@@ -244,7 +244,7 @@ Progress Bar ist aktuell inkonsistent und verwirrend (Ellen: fast voll obwohl fa
 Entscheide nach TASK-01-Ergebnis und dokumentiere in `04_ux-refactoring-eltern-ansicht_DECISIONS.md`.
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - Progress Bar hat klares Label oder ist entfernt
 - Browser-Test T-07 bestanden
 
@@ -271,7 +271,7 @@ Entscheide nach TASK-01-Ergebnis und dokumentiere in `04_ux-refactoring-eltern-a
 Die Cards rendern die gleichen Daten wie die Tabelle, aber vertikal statt horizontal.
 
 **Verifikation:**
-- [ ] Task erledigt
+- [x] Task erledigt
 - DevTools → Viewport auf 375px setzen → Jahresübersicht aufrufen → gut lesbar
 - Browser-Test T-10 bestanden
 

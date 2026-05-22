@@ -50,6 +50,10 @@
   .btn-primary{background:#007aff;color:#fff;border-color:#007aff}
   .btn-primary:active{opacity:0.8}
   .btn-secondary{background:transparent;border-color:#007aff;color:#007aff}
+  /* T10 — Jahresübersicht: Tabelle auf Desktop, Cards auf Mobile */
+  .year-table{display:block}
+  .year-cards{display:none}
+  @media(max-width:600px){.year-table{display:none}.year-cards{display:flex;flex-direction:column;gap:8px;margin-bottom:1rem}}
 </style>
 </head>
 <body>
@@ -627,26 +631,29 @@ const renderEltern = () => {
     wrap.append(topBar);
     wrap.append(h("p",{style:{fontSize:"16px",fontWeight:"700",marginBottom:"12px"}},[c.name+" – "+yr]));
 
-    // Tabelle
-    const tbl=h("div",{style:{background:"#fff",borderRadius:"14px",border:"1px solid #e5e5ea",overflow:"hidden",marginBottom:"1rem"}});
+    // T10 — Tabelle (Desktop) + Cards (Mobile) parallel aufbauen
+    const tbl=h("div",{className:"year-table",style:{background:"#fff",borderRadius:"14px",border:"1px solid #e5e5ea",overflow:"hidden",marginBottom:"1rem"}});
     const thRow=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"8px 12px",background:"#f5f5f7",fontSize:"10px",color:"#6e6e73",fontWeight:"600",textTransform:"uppercase",letterSpacing:"0.3px"}});
     // T2 — Saldo-Spalte mit Bedeutungshinweis
     ["Monat","Vereinb.","Bargeld","Auslagen","Saldo"].forEach(t=>thRow.append(h("span",{},[t])));
     tbl.append(thRow);
+    const yearCardsWrap=h("div",{className:"year-cards"});
 
     let totVereinbart=0,totBargeld=0,totAuslagen=0,runningBalance=0;
     const currentMk=todayKey();
     const effectiveStart=c.startMk||(()=>{const ts=parseInt(c.id);if(!ts||isNaN(ts))return null;const d=new Date(ts);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;})();
     MONTHS.forEach((mon,i)=>{
       const mk=`${yr}-${String(i+1).padStart(2,"0")}`;
-      if(mk>currentMk) return; // keine Zukunft
+      if(mk>currentMk) return;
       const st=calcStats(c,mk);
       const vereinbart=effectiveStart&&mk<effectiveStart?0:st.vereinbart;
       runningBalance+=st.elternGesamt-vereinbart;
       totVereinbart+=vereinbart; totBargeld+=st.ausgezahlt; totAuslagen+=st.auslagen;
       const beforeStart=effectiveStart&&mk<effectiveStart;
-      const row=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"9px 12px",borderTop:"1px solid #f0f0f5",fontSize:"12px",alignItems:"center",opacity:beforeStart?"0.45":"1"}});
       const standColor=beforeStart?"#aaa":runningBalance<0?"#c0392b":runningBalance>0?"#1d9e75":"#6e6e73";
+
+      // ── Desktop-Tabellenzeile
+      const row=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"9px 12px",borderTop:"1px solid #f0f0f5",fontSize:"12px",alignItems:"center",opacity:beforeStart?"0.45":"1"}});
       row.append(
         h("span",{style:{fontWeight:"500"}},[mon]),
         h("span",{style:{color:"#6e6e73"}},[vereinbart>0?fmt(vereinbart):"–"]),
@@ -655,9 +662,29 @@ const renderEltern = () => {
         h("span",{style:{fontWeight:"600",color:standColor}},[beforeStart?"–":(runningBalance>=0?"+":"")+fmt(runningBalance)])
       );
       tbl.append(row);
+
+      // ── Mobile-Card
+      const mCard=h("div",{style:{background:"#fff",borderRadius:"12px",border:"1px solid #e5e5ea",padding:"12px 14px",opacity:beforeStart?"0.5":"1"}});
+      const mTop=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}});
+      mTop.append(h("span",{style:{fontWeight:"600",fontSize:"14px"}},[mon+" "+yr]));
+      if(!beforeStart){
+        const saldoText=runningBalance>0?"+"+fmt(runningBalance):runningBalance<0?"−"+fmt(-runningBalance):"±0";
+        mTop.append(h("span",{style:{fontWeight:"700",fontSize:"14px",color:standColor}},[saldoText]));
+      }
+      mCard.append(mTop);
+      const mRow=h("div",{style:{display:"flex",gap:"12px",fontSize:"12px",color:"#6e6e73",flexWrap:"wrap"}});
+      mRow.append(h("span",{},["Vereinb.: "+(vereinbart>0?fmt(vereinbart):"–")]));
+      mRow.append(h("span",{},["Ausgez.: "+fmt(st.ausgezahlt)]));
+      if(st.auslagen>0) mRow.append(h("span",{},["Ausl.: "+fmt(st.auslagen)]));
+      mCard.append(mRow);
+      if(!beforeStart){
+        const saldoLabel=runningBalance>0?"Kind bekommt noch: "+fmt(runningBalance):runningBalance<0?"Kind schuldet: "+fmt(-runningBalance):"Ausgeglichen ✓";
+        mCard.append(h("div",{style:{marginTop:"6px",fontSize:"13px",fontWeight:"600",color:standColor}},[saldoLabel]));
+      }
+      yearCardsWrap.append(mCard);
     });
 
-    // Gesamtzeile
+    // Gesamtzeile (Tabelle)
     const totRow=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"0",padding:"10px 12px",borderTop:"2px solid #e5e5ea",fontSize:"12px",fontWeight:"700",background:"#f5f5f7"}});
     const totColor=runningBalance<0?"#c0392b":runningBalance>0?"#1d9e75":"#6e6e73";
     totRow.append(
@@ -668,9 +695,9 @@ const renderEltern = () => {
       h("span",{style:{color:totColor}},[(runningBalance>=0?"+":"")+fmt(runningBalance)])
     );
     tbl.append(totRow);
-    wrap.append(tbl);
+    wrap.append(tbl,yearCardsWrap);
     // T2 — Legende: Saldo-Bedeutung erklären
-    wrap.append(h("p",{style:{fontSize:"11px",color:"#6e6e73",marginBottom:"1rem",textAlign:"center"}},["Saldo: + Kind hat Guthaben (bekommt noch Geld) · − Kind hat Schulden"]));
+    wrap.append(h("p",{style:{fontSize:"11px",color:"#6e6e73",marginBottom:"1rem",textAlign:"center"}},["Saldo: + Kind hat Guthaben · − Kind hat Schulden"]));
 
     wrap.append(on(h("button",{className:"btn-ghost",style:{width:"100%",fontSize:"13px",color:"#6e6e73"}},["🖨 Drucken"]),"click",()=>window.print()));
   }
@@ -679,7 +706,8 @@ const renderEltern = () => {
     const c=S.data.children.find(x=>x.id===S.selId);
     if(!c){S.view="home";render();return wrap;}
     const col=COLS[S.data.children.indexOf(c)%COLS.length], s=calcStats(c,S.month);
-    const pct=s.vereinbart>0?Math.min(100,((s.elternGesamt+s.carryOver)/s.vereinbart)*100):0;
+    // T6 — pct: nur elternGesamt/vereinbart, kein carryOver-Verzerrung
+    const pct=s.vereinbart>0?Math.min(100,(s.elternGesamt/s.vereinbart)*100):0;
     const topBar=h("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"1rem"}});
     const mn=monthNav(); mn.style.flex="1"; mn.style.justifyContent="center"; mn.style.display="flex";
     topBar.append(on(h("button",{className:"btn-ghost"},["←"]),"click",()=>{S.view="home";render();}),mn,h("div",{style:{width:"24px"}}));
@@ -741,11 +769,13 @@ const renderEltern = () => {
       wrap.append(carryBox);
     }
 
+    // T6 — Progress Bar: klare Labels, korrekte Berechnung
     const prog=h("div",{className:"card",style:{padding:"12px 14px",marginTop:"10px",marginBottom:"1rem"}});
-    const pRow=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:"13px",marginBottom:"8px"}});
-    pRow.append(h("span",{style:{color:"#6e6e73"}},["Verrechnet "+fmt(s.elternGesamt)]));
-    if(s.netOffen>=0) pRow.append(h("span",{style:{fontWeight:"600",color:s.offen>0?col.text:"#aaa"}},["Noch offen: "+fmt(s.offen)]));
-    else pRow.append(h("span",{style:{fontWeight:"600",color:"#833b0a"}},["Schulden: "+fmt(-s.netOffen)+" → Folgemonat"]));
+    const pRow=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:"13px",marginBottom:"6px"}});
+    pRow.append(h("span",{style:{color:"#6e6e73"}},["Ausgezahlt: "+fmt(s.elternGesamt)+" von "+fmt(s.vereinbart)]));
+    if(s.netOffen>0) pRow.append(h("span",{style:{fontWeight:"600",color:col.text}},["Noch: "+fmt(s.offen)]));
+    else if(s.netOffen===0) pRow.append(h("span",{style:{fontWeight:"600",color:"#aaa"}},["✓ Fertig"]));
+    else pRow.append(h("span",{style:{fontWeight:"600",color:"#c0392b"}},["Überzahlt: "+fmt(-s.netOffen)]));
     prog.append(pRow,h("div",{className:"bar-wrap"},[h("div",{className:"bar",style:{width:pct+"%",background:s.netOffen<0?"#ef9f27":col.bar}})]));
     wrap.append(prog);
 

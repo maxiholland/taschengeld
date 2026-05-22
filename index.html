@@ -124,12 +124,28 @@ let S = {
 
 // ── Logic ──────────────────────────────────────────────────────────────────
 const getCarryOver = (c, beforeMk) => {
-  const keys=[...new Set((c.transaktionen||[]).map(t=>t.monatKey))].filter(k=>k<beforeMk).sort();
-  return keys.reduce((debt,mk)=>{
-    const txs=(c.transaktionen||[]).filter(t=>t.monatKey===mk);
-    const el=txs.filter(t=>t.typ==="taschengeld"||t.typ==="auslage").reduce((s,t)=>s+t.betrag,0);
-    return debt+el-vereinbartProMonat(c);
-  },0);
+  // B2 — inaktive Monate als Guthaben/Schulden zählen
+  const ts = parseInt(c.id);
+  if(!ts || isNaN(ts)) {
+    // Fallback für legacy-IDs ohne Timestamp
+    const keys=[...new Set((c.transaktionen||[]).map(t=>t.monatKey))].filter(k=>k<beforeMk).sort();
+    return keys.reduce((debt,mk)=>{
+      const txs=(c.transaktionen||[]).filter(t=>t.monatKey===mk);
+      const el=txs.filter(t=>t.typ==="taschengeld"||t.typ==="auslage").reduce((s,t)=>s+t.betrag,0);
+      return debt+el-vereinbartProMonat(c);
+    },0);
+  }
+  const d = new Date(ts);
+  const firstMk = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+  if(firstMk >= beforeMk) return 0;
+  let mk = firstMk, debt = 0;
+  while(mk < beforeMk) {
+    const txs = (c.transaktionen||[]).filter(t=>t.monatKey===mk);
+    const el = txs.filter(t=>t.typ==="taschengeld"||t.typ==="auslage").reduce((s,t)=>s+t.betrag,0);
+    debt += el - vereinbartProMonat(c);
+    mk = stepM(mk, 1);
+  }
+  return debt;
 };
 const calcStats = (c,mk) => {
   const txs=(c.transaktionen||[]).filter(t=>t.monatKey===mk);
